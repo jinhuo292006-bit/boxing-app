@@ -377,128 +377,128 @@ const DIET_PLANS = {
 const ExerciseSVG = ({ exerciseName, dark }) => {
   const color = dark ? "#e2e8f0" : "#1a1a2e";
   const accent = "#e74c3c";
-  
+
   const svgs = {
     default: (
-      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
-        <circle cx="100" cy="40" r="25" fill={color} opacity="0.9"/>
-        <rect x="75" y="70" width="50" height="100" rx="10" fill={color} opacity="0.85"/>
-        <rect x="40" y="75" width="30" height="80" rx="8" fill={color} opacity="0.75"/>
-        <rect x="130" y="75" width="30" height="80" rx="8" fill={color} opacity="0.75"/>
-        <rect x="78" y="168" width="22" height="80" rx="8" fill={color} opacity="0.8"/>
-        <rect x="100" y="168" width="22" height="80" rx="8" fill={color} opacity="0.8"/>
+      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
+        <circle cx="100" cy="40" r="25" fill={color} opacity="0.9" />
+        <rect x="75" y="70" width="50" height="100" rx="10" fill={color} opacity="0.85" />
+        <rect x="40" y="75" width="30" height="80" rx="8" fill={color} opacity="0.75" />
+        <rect x="130" y="75" width="30" height="80" rx="8" fill={color} opacity="0.75" />
+        <rect x="78" y="168" width="22" height="80" rx="8" fill={color} opacity="0.8" />
+        <rect x="100" y="168" width="22" height="80" rx="8" fill={color} opacity="0.8" />
       </svg>
     ),
     boxing: (
-      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
-        <circle cx="90" cy="38" r="22" fill={color} opacity="0.9"/>
-        <rect x="72" y="65" width="44" height="95" rx="10" fill={color} opacity="0.85"/>
+      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
+        <circle cx="90" cy="38" r="22" fill={color} opacity="0.9" />
+        <rect x="72" y="65" width="44" height="95" rx="10" fill={color} opacity="0.85" />
         {/* Lead arm punching */}
-        <rect x="30" y="68" width="80" height="22" rx="11" fill={accent} opacity="0.9"/>
+        <rect x="30" y="68" width="80" height="22" rx="11" fill={accent} opacity="0.9" />
         {/* Rear guard */}
-        <rect x="116" y="72" width="25" height="60" rx="8" fill={color} opacity="0.75"/>
+        <rect x="116" y="72" width="25" height="60" rx="8" fill={color} opacity="0.75" />
         {/* Legs in stance */}
-        <rect x="65" y="158" width="20" height="90" rx="8" fill={color} opacity="0.8" transform="rotate(-5 65 158)"/>
-        <rect x="95" y="158" width="20" height="90" rx="8" fill={color} opacity="0.8" transform="rotate(5 95 158)"/>
+        <rect x="65" y="158" width="20" height="90" rx="8" fill={color} opacity="0.8" transform="rotate(-5 65 158)" />
+        <rect x="95" y="158" width="20" height="90" rx="8" fill={color} opacity="0.8" transform="rotate(5 95 158)" />
         {/* Gloves */}
-        <ellipse cx="28" cy="68" rx="16" ry="12" fill={accent} opacity="0.95"/>
+        <ellipse cx="28" cy="68" rx="16" ry="12" fill={accent} opacity="0.95" />
       </svg>
     ),
     pullup: (
-      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
+      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
         {/* Bar */}
-        <rect x="20" y="20" width="160" height="10" rx="5" fill={color} opacity="0.6"/>
+        <rect x="20" y="20" width="160" height="10" rx="5" fill={color} opacity="0.6" />
         {/* Arms */}
-        <rect x="55" y="28" width="15" height="60" rx="7" fill={accent} opacity="0.9"/>
-        <rect x="130" y="28" width="15" height="60" rx="7" fill={accent} opacity="0.9"/>
+        <rect x="55" y="28" width="15" height="60" rx="7" fill={accent} opacity="0.9" />
+        <rect x="130" y="28" width="15" height="60" rx="7" fill={accent} opacity="0.9" />
         {/* Head */}
-        <circle cx="100" cy="105" r="22" fill={color} opacity="0.9"/>
+        <circle cx="100" cy="105" r="22" fill={color} opacity="0.9" />
         {/* Torso */}
-        <rect x="80" y="128" width="40" height="80" rx="10" fill={color} opacity="0.85"/>
+        <rect x="80" y="128" width="40" height="80" rx="10" fill={color} opacity="0.85" />
         {/* Legs together */}
-        <rect x="85" y="205" width="18" height="70" rx="8" fill={color} opacity="0.8"/>
-        <rect x="100" y="205" width="18" height="70" rx="8" fill={color} opacity="0.8"/>
+        <rect x="85" y="205" width="18" height="70" rx="8" fill={color} opacity="0.8" />
+        <rect x="100" y="205" width="18" height="70" rx="8" fill={color} opacity="0.8" />
       </svg>
     ),
     pushup: (
-      <svg viewBox="0 0 280 180" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
+      <svg viewBox="0 0 280 180" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
         {/* Ground */}
-        <rect x="0" y="155" width="280" height="8" rx="4" fill={color} opacity="0.3"/>
+        <rect x="0" y="155" width="280" height="8" rx="4" fill={color} opacity="0.3" />
         {/* Body horizontal */}
-        <rect x="50" y="100" width="160" height="28" rx="12" fill={color} opacity="0.85"/>
+        <rect x="50" y="100" width="160" height="28" rx="12" fill={color} opacity="0.85" />
         {/* Head */}
-        <circle cx="225" cy="100" r="22" fill={color} opacity="0.9"/>
+        <circle cx="225" cy="100" r="22" fill={color} opacity="0.9" />
         {/* Arms */}
-        <rect x="70" y="110" width="15" height="45" rx="7" fill={accent} opacity="0.9"/>
-        <rect x="140" y="110" width="15" height="45" rx="7" fill={accent} opacity="0.9"/>
+        <rect x="70" y="110" width="15" height="45" rx="7" fill={accent} opacity="0.9" />
+        <rect x="140" y="110" width="15" height="45" rx="7" fill={accent} opacity="0.9" />
         {/* Legs */}
-        <rect x="30" y="110" width="28" height="45" rx="8" fill={color} opacity="0.8"/>
+        <rect x="30" y="110" width="28" height="45" rx="8" fill={color} opacity="0.8" />
       </svg>
     ),
     squat: (
-      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
-        <circle cx="100" cy="40" r="22" fill={color} opacity="0.9"/>
+      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
+        <circle cx="100" cy="40" r="22" fill={color} opacity="0.9" />
         {/* Leaning torso */}
-        <rect x="80" y="62" width="40" height="70" rx="10" fill={color} opacity="0.85" transform="rotate(10 80 62)"/>
+        <rect x="80" y="62" width="40" height="70" rx="10" fill={color} opacity="0.85" transform="rotate(10 80 62)" />
         {/* Arms extended for balance */}
-        <rect x="20" y="100" width="60" height="14" rx="7" fill={color} opacity="0.75"/>
-        <rect x="120" y="100" width="60" height="14" rx="7" fill={color} opacity="0.75"/>
+        <rect x="20" y="100" width="60" height="14" rx="7" fill={color} opacity="0.75" />
+        <rect x="120" y="100" width="60" height="14" rx="7" fill={color} opacity="0.75" />
         {/* Thighs parallel to ground */}
-        <rect x="60" y="130" width="70" height="18" rx="9" fill={accent} opacity="0.9"/>
+        <rect x="60" y="130" width="70" height="18" rx="9" fill={accent} opacity="0.9" />
         {/* Shins */}
-        <rect x="55" y="148" width="18" height="70" rx="8" fill={color} opacity="0.8" transform="rotate(-15 55 148)"/>
-        <rect x="115" y="148" width="18" height="70" rx="8" fill={color} opacity="0.8" transform="rotate(15 115 148)"/>
+        <rect x="55" y="148" width="18" height="70" rx="8" fill={color} opacity="0.8" transform="rotate(-15 55 148)" />
+        <rect x="115" y="148" width="18" height="70" rx="8" fill={color} opacity="0.8" transform="rotate(15 115 148)" />
       </svg>
     ),
     plank: (
-      <svg viewBox="0 0 300 160" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
-        <rect x="0" y="140" width="300" height="8" rx="4" fill={color} opacity="0.3"/>
+      <svg viewBox="0 0 300 160" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
+        <rect x="0" y="140" width="300" height="8" rx="4" fill={color} opacity="0.3" />
         {/* Body straight */}
-        <rect x="40" y="88" width="185" height="28" rx="12" fill={color} opacity="0.85"/>
+        <rect x="40" y="88" width="185" height="28" rx="12" fill={color} opacity="0.85" />
         {/* Head */}
-        <circle cx="240" cy="92" r="22" fill={color} opacity="0.9"/>
+        <circle cx="240" cy="92" r="22" fill={color} opacity="0.9" />
         {/* Forearms on ground */}
-        <rect x="60" y="115" width="14" height="28" rx="7" fill={accent} opacity="0.9"/>
-        <rect x="120" y="115" width="14" height="28" rx="7" fill={accent} opacity="0.9"/>
+        <rect x="60" y="115" width="14" height="28" rx="7" fill={accent} opacity="0.9" />
+        <rect x="120" y="115" width="14" height="28" rx="7" fill={accent} opacity="0.9" />
         {/* Feet */}
-        <rect x="28" y="108" width="28" height="14" rx="6" fill={color} opacity="0.8"/>
+        <rect x="28" y="108" width="28" height="14" rx="6" fill={color} opacity="0.8" />
       </svg>
     ),
     skip: (
-      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
-        <circle cx="100" cy="38" r="22" fill={color} opacity="0.9"/>
-        <rect x="82" y="62" width="36" height="80" rx="10" fill={color} opacity="0.85"/>
+      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
+        <circle cx="100" cy="38" r="22" fill={color} opacity="0.9" />
+        <rect x="82" y="62" width="36" height="80" rx="10" fill={color} opacity="0.85" />
         {/* Arms out holding rope */}
-        <rect x="20" y="90" width="58" height="14" rx="7" fill={color} opacity="0.75"/>
-        <rect x="122" y="90" width="58" height="14" rx="7" fill={color} opacity="0.75"/>
+        <rect x="20" y="90" width="58" height="14" rx="7" fill={color} opacity="0.75" />
+        <rect x="122" y="90" width="58" height="14" rx="7" fill={color} opacity="0.75" />
         {/* Rope */}
-        <path d="M 22 100 Q 100 160 178 100" stroke={accent} strokeWidth="4" fill="none" strokeDasharray="6 3"/>
+        <path d="M 22 100 Q 100 160 178 100" stroke={accent} strokeWidth="4" fill="none" strokeDasharray="6 3" />
         {/* Legs - jumping */}
-        <rect x="80" y="140" width="18" height="60" rx="8" fill={color} opacity="0.8" transform="rotate(-10 80 140)"/>
-        <rect x="102" y="140" width="18" height="60" rx="8" fill={color} opacity="0.8" transform="rotate(10 102 140)"/>
+        <rect x="80" y="140" width="18" height="60" rx="8" fill={color} opacity="0.8" transform="rotate(-10 80 140)" />
+        <rect x="102" y="140" width="18" height="60" rx="8" fill={color} opacity="0.8" transform="rotate(10 102 140)" />
       </svg>
     ),
     stretch: (
-      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
-        <circle cx="100" cy="42" r="22" fill={color} opacity="0.9"/>
-        <rect x="82" y="66" width="36" height="75" rx="10" fill={color} opacity="0.85"/>
+      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
+        <circle cx="100" cy="42" r="22" fill={color} opacity="0.9" />
+        <rect x="82" y="66" width="36" height="75" rx="10" fill={color} opacity="0.85" />
         {/* Arms stretched overhead */}
-        <rect x="88" y="10" width="14" height="56" rx="7" fill={accent} opacity="0.9"/>
+        <rect x="88" y="10" width="14" height="56" rx="7" fill={accent} opacity="0.9" />
         {/* Legs split */}
-        <rect x="72" y="140" width="18" height="90" rx="8" fill={color} opacity="0.8" transform="rotate(-20 72 140)"/>
-        <rect x="110" y="140" width="18" height="90" rx="8" fill={color} opacity="0.8" transform="rotate(20 110 140)"/>
+        <rect x="72" y="140" width="18" height="90" rx="8" fill={color} opacity="0.8" transform="rotate(-20 72 140)" />
+        <rect x="110" y="140" width="18" height="90" rx="8" fill={color} opacity="0.8" transform="rotate(20 110 140)" />
       </svg>
     ),
     burpee: (
-      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%"}}>
-        <circle cx="100" cy="35" r="22" fill={color} opacity="0.9"/>
+      <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
+        <circle cx="100" cy="35" r="22" fill={color} opacity="0.9" />
         {/* Arms raised */}
-        <rect x="52" y="20" width="14" height="60" rx="7" fill={accent} opacity="0.9" transform="rotate(-30 52 20)"/>
-        <rect x="134" y="20" width="14" height="60" rx="7" fill={accent} opacity="0.9" transform="rotate(30 134 20)"/>
-        <rect x="82" y="58" width="36" height="80" rx="10" fill={color} opacity="0.85"/>
+        <rect x="52" y="20" width="14" height="60" rx="7" fill={accent} opacity="0.9" transform="rotate(-30 52 20)" />
+        <rect x="134" y="20" width="14" height="60" rx="7" fill={accent} opacity="0.9" transform="rotate(30 134 20)" />
+        <rect x="82" y="58" width="36" height="80" rx="10" fill={color} opacity="0.85" />
         {/* Legs jumping */}
-        <rect x="75" y="138" width="20" height="80" rx="8" fill={color} opacity="0.8" transform="rotate(-8 75 138)"/>
-        <rect x="105" y="138" width="20" height="80" rx="8" fill={color} opacity="0.8" transform="rotate(8 105 138)"/>
+        <rect x="75" y="138" width="20" height="80" rx="8" fill={color} opacity="0.8" transform="rotate(-8 75 138)" />
+        <rect x="105" y="138" width="20" height="80" rx="8" fill={color} opacity="0.8" transform="rotate(8 105 138)" />
       </svg>
     ),
   };
@@ -552,6 +552,41 @@ export default function BoxingApp() {
   const [prs, setPrs] = useState({});
   const [streak, setStreak] = useState(7);
   const intervalRef = useRef(null);
+  const voiceAlertsRef = useRef(new Set()); // track which alerts have fired per timer session
+
+  // ── PERSIST + RESTORE USER ───────────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("ironfist_user");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setUser(parsed);
+        setScreen("home");
+      }
+    } catch (_) { }
+
+    // Load Google Identity Services SDK
+    if (!document.getElementById("google-gsi-script")) {
+      const script = document.createElement("script");
+      script.id = "google-gsi-script";
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+  }, []);
+
+  const loginUser = (userData) => {
+    try { localStorage.setItem("ironfist_user", JSON.stringify(userData)); } catch (_) { }
+    setUser(userData);
+    setScreen("home");
+  };
+
+  const logoutUser = () => {
+    try { localStorage.removeItem("ironfist_user"); } catch (_) { }
+    setUser(null);
+    setScreen("register");
+  };
 
   const todayIdx = new Date().getDay();
   const todayKey = DAYS[todayIdx];
@@ -571,15 +606,56 @@ export default function BoxingApp() {
     purple: "#8e44ad",
   };
 
-  // Timer logic
+  // ── VOICE ALERT HELPER ───────────────────────────────────────────────────────
+  const speak = useCallback((text) => {
+    if (!window.speechSynthesis) return;
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 0.95;
+    utt.pitch = 1.1;
+    utt.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utt);
+  }, []);
+
+  // Timer logic + voice alerts
   useEffect(() => {
     if (running && timer > 0) {
-      intervalRef.current = setInterval(() => setTimer(t => t - 1), 1000);
+      intervalRef.current = setInterval(() => {
+        setTimer(t => {
+          const next = t - 1;
+          if (!voiceAlertsRef.current.has(next)) {
+            if (next === 120) {
+              voiceAlertsRef.current.add(next);
+              setTimeout(() => speak("2 minutes remaining"), 0);
+            } else if (next === 60) {
+              voiceAlertsRef.current.add(next);
+              setTimeout(() => speak("1 minute remaining"), 0);
+            } else if (next > 0 && next % 60 === 0) {
+              voiceAlertsRef.current.add(next);
+              setTimeout(() => speak(`${next / 60} minutes remaining`), 0);
+            } else if (next === 10) {
+              voiceAlertsRef.current.add(next);
+              setTimeout(() => speak("10 seconds"), 0);
+            } else if (next === 3) {
+              voiceAlertsRef.current.add(next);
+              setTimeout(() => speak("3"), 0);
+            } else if (next === 2) {
+              voiceAlertsRef.current.add(next);
+              setTimeout(() => speak("2"), 0);
+            } else if (next === 1) {
+              voiceAlertsRef.current.add(next);
+              setTimeout(() => speak("1"), 0);
+            }
+          }
+          return next;
+        });
+      }, 1000);
     } else if (timer === 0 && running) {
       setRunning(false);
+      speak("Time's up! Great work!");
     }
     return () => clearInterval(intervalRef.current);
-  }, [running, timer]);
+  }, [running, timer, speak]);
 
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -595,6 +671,7 @@ export default function BoxingApp() {
     setCurrentExerciseIdx(0);
     setCurrentSet(1);
     setRepCount(0);
+    voiceAlertsRef.current = new Set();
     const first = exs[0];
     setTimer(first.duration || 0);
     setRunning(false);
@@ -608,6 +685,7 @@ export default function BoxingApp() {
       setCurrentExerciseIdx(i => i + 1);
       setCurrentSet(1);
       setRepCount(0);
+      voiceAlertsRef.current = new Set();
       setTimer(next.duration || 0);
       setRunning(false);
     } else {
@@ -737,7 +815,7 @@ export default function BoxingApp() {
             {ex.unit === "time" && (
               <button
                 onClick={() => {
-                  if (timer === 0) { setTimer(ex.duration); setRunning(false); }
+                  if (timer === 0) { voiceAlertsRef.current = new Set(); setTimer(ex.duration); setRunning(false); }
                   else setRunning(r => !r);
                 }}
                 style={{ ...s.btn(running ? T.accent2 : T.green, false), minWidth: 120, justifyContent: "center", animation: running ? "none" : "glow 2s infinite" }}
@@ -750,6 +828,7 @@ export default function BoxingApp() {
                 if (ex.sets && currentSet < totalSets) {
                   setCurrentSet(s => s + 1);
                   setRepCount(0);
+                  voiceAlertsRef.current = new Set();
                   setTimer(ex.duration || 0);
                   setRunning(false);
                 } else {
@@ -780,8 +859,38 @@ export default function BoxingApp() {
     ];
 
     const submit = () => {
-      setUser({ ...form, bmi, joinDate: new Date().toISOString() });
-      setScreen("home");
+      loginUser({ ...form, bmi, joinDate: new Date().toISOString() });
+    };
+
+    const handleGoogleSignIn = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: "227538733566-ma286c51m2h95eqcpjs41ttguqnhee72.apps.googleusercontent.com",
+          callback: (response) => {
+            // Decode JWT payload (no sensitive ops needed here)
+            try {
+              const payload = JSON.parse(atob(response.credential.split(".")[1]));
+              loginUser({
+                name: payload.name || "Fighter",
+                email: payload.email || "",
+                gender: "other",
+                age: "",
+                height: "",
+                weight: "",
+                goal: "improve performance",
+                experience: "beginner",
+                bmi: null,
+                joinDate: new Date().toISOString(),
+                googleAvatar: payload.picture || "",
+                googleSub: payload.sub,
+              });
+            } catch (_) { alert("Google sign-in failed. Please try manual registration."); }
+          },
+        });
+        window.google.accounts.id.prompt();
+      } else {
+        alert("Google Sign-In is loading… please try again in a moment.");
+      }
     };
 
     return (
@@ -792,6 +901,24 @@ export default function BoxingApp() {
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 52, color: T.accent, letterSpacing: 4, lineHeight: 1 }}>IRON FIST</div>
             <div style={{ fontFamily: "'Rajdhani'", fontSize: 12, color: T.sub, letterSpacing: 6, textTransform: "uppercase" }}>Boxing & Fitness</div>
             <div style={{ marginTop: 16, fontSize: 48 }}>🥊</div>
+          </div>
+
+          {/* Google Sign-In */}
+          <div style={{ marginBottom: 20 }}>
+            <button
+              onClick={handleGoogleSignIn}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, background: "#fff", color: "#1f1f1f", border: "1px solid #ddd", borderRadius: 10, padding: "12px 20px", cursor: "pointer", fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: 1, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", transition: "all 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.2)"}
+              onMouseLeave={e => e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.12)"}
+            >
+              <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.7C34.2 33.2 29.6 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.4 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.4-.1-2.7-.2-4z" /><path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.5 19.2 14 24 14c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.4 29.4 4 24 4c-7.8 0-14.5 4.5-17.7 10.7z" /><path fill="#FBBC05" d="M24 44c5.4 0 10.3-1.9 14.1-5.1l-6.5-5.3C29.6 35.4 27 36 24 36c-5.6 0-10.3-3.8-11.7-9l-7 5.4C8.5 39.5 15.7 44 24 44z" /><path fill="#EA4335" d="M44.5 20H24v8.5h11.7c-.8 2.3-2.3 4.3-4.3 5.7l6.5 5.3c3.8-3.5 6.1-8.7 6.1-15.1 0-1.4-.1-2.7-.2-4z" /></svg>
+              Continue with Google
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "16px 0 0" }}>
+              <div style={{ flex: 1, height: 1, background: T.border }} />
+              <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2 }}>OR REGISTER MANUALLY</div>
+              <div style={{ flex: 1, height: 1, background: T.border }} />
+            </div>
           </div>
 
           {/* Step indicator */}
@@ -1381,9 +1508,18 @@ export default function BoxingApp() {
             <div style={s.logo}>IRON FIST 🥊</div>
             <div style={s.logoSub}>Boxing & Fitness</div>
           </div>
-          <button onClick={() => setDark(d => !d)} style={s.toggle}>
-            {dark ? "☀️" : "🌙"}
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={() => setDark(d => !d)} style={s.toggle}>
+              {dark ? "☀️" : "🌙"}
+            </button>
+            {user && (
+              <button onClick={logoutUser} title="Sign out" style={{ ...s.toggle, fontSize: 14, padding: "6px 12px", color: T.sub }}>
+                {user.googleAvatar
+                  ? <img src={user.googleAvatar} alt="avatar" style={{ width: 22, height: 22, borderRadius: "50%", verticalAlign: "middle" }} />
+                  : "👤"} Sign out
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Nav */}
