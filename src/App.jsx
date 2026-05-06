@@ -667,9 +667,26 @@ export default function BoxingApp() {
   const [currentSet, setCurrentSet] = useState(1);
   const [weekNumber, setWeekNumber] = useState(1);
   const [prs, setPrs] = useState({});
-  const [streak, setStreak] = useState(7);
+  const [googlePending, setGooglePending] = useState(null);
+  const [breathScreen, setBreathScreen] = useState(null); // { duration, intensity, onDone }
   const intervalRef = useRef(null);
-  const voiceAlertsRef = useRef(new Set()); // track which alerts have fired per timer session
+  const voiceAlertsRef = useRef(new Set());
+
+  // Real streak computed from workoutDays in localStorage (no demo numbers)
+  const getRealStreak = () => {
+    try {
+      const days = JSON.parse(localStorage.getItem("ironfist_workoutdays") || "[]");
+      if (!days.length) return 0;
+      let s = 0;
+      for (let i = 0; i < 60; i++) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        if (days.includes(d.toLocaleDateString("en-GB"))) s++;
+        else break;
+      }
+      return s;
+    } catch { return 0; }
+  };
+  const streak = getRealStreak();
 
   // ── PERSIST + RESTORE USER ───────────────────────────────────────────────────
   useEffect(() => {
@@ -703,6 +720,34 @@ export default function BoxingApp() {
     try { localStorage.removeItem("ironfist_user"); } catch (_) { }
     setUser(null);
     setScreen("register");
+  };
+
+  // ── TDEE CALORIE CALCULATOR ──────────────────────────────────────────────────
+  const calcTDEE = (u) => {
+    if (!u) return null;
+    const w = parseFloat(u.weight), h = parseFloat(u.height), a = parseFloat(u.age);
+    if (!w || !h || !a) return null;
+    // Mifflin-St Jeor BMR
+    const bmr = u.gender === "female"
+      ? 10 * w + 6.25 * h - 5 * a - 161
+      : 10 * w + 6.25 * h - 5 * a + 5;
+    // Activity multiplier — boxing 6×/week is heavy training
+    const activityMult = { beginner: 1.55, intermediate: 1.725, advanced: 1.9 }[u.experience] || 1.55;
+    const tdee = Math.round(bmr * activityMult);
+    const goal = u.goal || "improve performance";
+    const target = goal === "lose fat" ? Math.round(tdee * 0.82) : goal === "build muscle" ? Math.round(tdee * 1.1) : tdee;
+    const protein = Math.round(w * (u.experience === "advanced" ? 2.2 : 2.0));
+    const fat = Math.round(target * 0.28 / 9);
+    const carbs = Math.round((target - protein * 4 - fat * 9) / 4);
+    return { bmr: Math.round(bmr), tdee, target, protein, fat, carbs };
+  };
+
+  const updateUser = (updates) => {
+    const updated = { ...user, ...updates };
+    const bmi = updated.height && updated.weight ? calcBMI(updated.weight, updated.height) : updated.bmi;
+    const final = { ...updated, bmi };
+    try { localStorage.setItem("ironfist_user", JSON.stringify(final)); } catch (_) { }
+    setUser(final);
   };
 
   const todayIdx = new Date().getDay();
@@ -805,20 +850,221 @@ export default function BoxingApp() {
     setScreen("active");
   };
 
+  // Breathing duration based on exercise intensity
+  const getBreathDuration = (ex) => {
+    if (!ex) return 15;
+    const name = (ex.name || "").toLowerCase();
+    const dur = ex.duration || 0;
+    // High intensity: burpees, jump squats, sprints, rounds, combinations → 25-30s
+    if (name.includes("burpee") || name.includes("jump squat") || name.includes("clap") || name.includes("high knee") || name.includes("mountain") || name.includes("sprint") || (ex.unit === "time" && dur >= 120)) return 30;
+    // Medium intensity: push-ups, pull-ups, shadowboxing, conditioning → 20s
+    if (name.includes("push") || name.includes("pull") || name.includes("shadow") || name.includes("squat") || name.includes("lunge") || name.includes("chin") || name.includes("combo") || (ex.unit === "time" && dur >= 60)) return 20;
+    // Low intensity: stretching, neck, breathing, plank, rest → 10s
+    if (name.includes("stretch") || name.includes("breathing") || name.includes("rest") || name.includes("neck") || name.includes("isometric") || name.includes("plank") || ex.isRest) return 10;
+    // Default moderate
+    return 15;
+  };
+
   const nextExercise = () => {
     const exs = activeWorkout.exercises;
-    if (currentExerciseIdx < exs.length - 1) {
-      const next = exs[currentExerciseIdx + 1];
-      setCurrentExerciseIdx(i => i + 1);
-      setCurrentSet(1);
-      setRepCount(0);
-      voiceAlertsRef.current = new Set();
-      setTimer(next.duration || 0);
-      setRunning(false);
-    } else {
-      setScreen("home");
-      setActiveWorkout(null);
+    const currentEx = exs[currentExerciseIdx];
+    const isLast = currentExerciseIdx >= exs.length - 1;
+    const breathDur = getBreathDuration(currentEx);
+
+    // Log today's workout on any exercise completion
+    const today = new Date().toLocaleDateString("en-GB");
+    try {
+      const days = JSON.parse(localStorage.getItem("ironfist_workoutdays") || "[]");
+      if (!days.includes(today)) {
+        localStorage.setItem("ironfist_workoutdays", JSON.stringify([...days, today].slice(-60)));
+      }
+    } catch { }
+
+    // Skip breath screen for rest periods and very short exercises
+    const skipBreath = currentEx?.isRest || (currentEx?.unit !== "time" && !currentEx?.duration);
+
+    if (skipBreath) {
+      if (isLast) { finishWorkout(); }
+      else {
+        const next = exs[currentExerciseIdx + 1];
+        setCurrentExerciseIdx(i => i + 1);
+        setCurrentSet(1); setRepCount(0);
+        voiceAlertsRef.current = new Set();
+        setTimer(next.duration || 0); setRunning(false);
+      }
+      return;
     }
+
+    setBreathScreen({
+      duration: breathDur,
+      intensity: breathDur >= 25 ? "high" : breathDur >= 18 ? "medium" : "low",
+      exerciseName: currentEx.name,
+      isLast,
+      onDone: () => {
+        setBreathScreen(null);
+        if (isLast) { finishWorkout(); }
+        else {
+          const next = exs[currentExerciseIdx + 1];
+          setCurrentExerciseIdx(i => i + 1);
+          setCurrentSet(1); setRepCount(0);
+          voiceAlertsRef.current = new Set();
+          setTimer(next.duration || 0); setRunning(false);
+        }
+      },
+    });
+  };
+
+  const finishWorkout = () => {
+    speak("Workout complete! Outstanding effort! Remember to stretch and hydrate.");
+    setScreen("home");
+    setActiveWorkout(null);
+  };
+
+  // ── BREATHING TIMER SCREEN ───────────────────────────────────────────────────
+  const BreathingScreen = () => {
+    const [timeLeft, setTimeLeft] = useState(breathScreen.duration);
+    const [phase, setPhase] = useState("inhale"); // inhale | hold | exhale | hold2
+    const [phaseTime, setPhaseTime] = useState(4);
+    const [phaseTick, setPhaseTick] = useState(4);
+    const [started, setStarted] = useState(false);
+    const breathRef = useRef(null);
+    const boxDur = 4; // box breathing: 4-4-4-4
+
+    const phases = ["inhale", "hold", "exhale", "hold2"];
+    const phaseLabels = { inhale: "BREATHE IN", hold: "HOLD", exhale: "BREATHE OUT", hold2: "HOLD" };
+    const phaseColors = { inhale: T.accent3, hold: T.accent2, exhale: T.green, hold2: T.purple };
+    const phaseEmojis = { inhale: "🫁", hold: "🧘", exhale: "😮‍💨", hold2: "🧘" };
+
+    const intensity = breathScreen.intensity;
+    const ringR = 85;
+    const circ = 2 * Math.PI * ringR;
+    const totalDur = breathScreen.duration;
+    const elapsed = totalDur - timeLeft;
+    const overallPct = elapsed / totalDur;
+    const ringOffset = circ * (1 - overallPct);
+
+    // Phase animation scale (breathing circle pulse)
+    const phaseProgress = 1 - phaseTick / boxDur;
+    const circleScale = phase === "inhale" ? 1 + phaseProgress * 0.25
+      : phase === "exhale" ? 1.25 - phaseProgress * 0.25
+        : 1.25;
+
+    useEffect(() => {
+      if (!started) return;
+      breathRef.current = setInterval(() => {
+        setTimeLeft(t => {
+          if (t <= 1) {
+            clearInterval(breathRef.current);
+            speak("Breathing complete. Well done!");
+            setTimeout(() => breathScreen.onDone(), 600);
+            return 0;
+          }
+          return t - 1;
+        });
+        setPhaseTick(pt => {
+          if (pt <= 1) {
+            setPhase(p => {
+              const idx = phases.indexOf(p);
+              const next = phases[(idx + 1) % phases.length];
+              const label = phaseLabels[next];
+              speak(label === "BREATHE IN" ? "Breathe in" : label === "BREATHE OUT" ? "Breathe out" : "Hold");
+              return next;
+            });
+            return boxDur;
+          }
+          return pt - 1;
+        });
+      }, 1000);
+      return () => clearInterval(breathRef.current);
+    }, [started]);
+
+    const intensityConfig = {
+      high: { label: "HIGH INTENSITY RECOVERY", color: T.accent, tip: "Deep breaths — flush lactic acid fast" },
+      medium: { label: "MODERATE RECOVERY", color: T.accent2, tip: "Steady box breathing to reset heart rate" },
+      low: { label: "LIGHT RECOVERY", color: T.green, tip: "Gentle breathing to stay relaxed" },
+    }[intensity] || { label: "RECOVERY BREATH", color: T.accent3, tip: "Breathe and recover" };
+
+    return (
+      <div style={{ ...s.app, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: 24, background: dark ? "#060610" : "#f0f4ff" }}>
+        {/* Header */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: dark ? "#0a0a18" : "#1a1a4e", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, color: "#fff", letterSpacing: 2 }}>BREATHING TIMER</div>
+          <button onClick={() => { clearInterval(breathRef.current); breathScreen.onDone(); }} style={{ ...s.btn(T.sub, true), padding: "5px 12px", fontSize: 12 }}>Skip →</button>
+        </div>
+
+        <div style={{ textAlign: "center", marginBottom: 16, marginTop: 60 }}>
+          <div style={{ ...s.badge(intensityConfig.color), display: "inline-block", marginBottom: 8 }}>{intensityConfig.label}</div>
+          <div style={{ fontSize: 13, color: T.sub }}>{breathScreen.exerciseName} complete</div>
+        </div>
+
+        {/* Main breathing circle */}
+        <div style={{ position: "relative", width: 240, height: 240, marginBottom: 24 }}>
+          {/* Outer progress ring */}
+          <svg width="240" height="240" viewBox="0 0 240 240" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
+            <circle cx="120" cy="120" r={ringR} fill="none" stroke={T.border} strokeWidth="8" />
+            <circle cx="120" cy="120" r={ringR} fill="none" stroke={intensityConfig.color} strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={circ}
+              strokeDashoffset={ringOffset}
+              style={{ transition: "stroke-dashoffset 0.9s linear" }} />
+          </svg>
+
+          {/* Breathing pulse circle */}
+          <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            transform: `translate(-50%, -50%) scale(${started ? circleScale : 1})`,
+            width: 130, height: 130, borderRadius: "50%",
+            background: `radial-gradient(circle, ${phaseColors[phase]}44, ${phaseColors[phase]}11)`,
+            border: `3px solid ${phaseColors[phase]}88`,
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            transition: "transform 0.9s ease, background 0.5s, border-color 0.5s",
+            boxShadow: started ? `0 0 30px ${phaseColors[phase]}44` : "none",
+          }}>
+            <div style={{ fontSize: 32 }}>{phaseEmojis[phase]}</div>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 2, color: phaseColors[phase], marginTop: 4 }}>
+              {started ? phaseLabels[phase] : "READY"}
+            </div>
+          </div>
+
+          {/* Countdown in corner */}
+          <div style={{ position: "absolute", bottom: 8, right: 8, fontFamily: "'JetBrains Mono'", fontSize: 26, color: T.text, lineHeight: 1 }}>
+            {timeLeft}s
+          </div>
+        </div>
+
+        {/* Box breathing guide */}
+        {started && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+            {phases.map((p, i) => (
+              <div key={p} style={{
+                padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700, letterSpacing: 1,
+                background: phase === p ? phaseColors[p] + "33" : T.card2,
+                color: phase === p ? phaseColors[p] : T.sub,
+                border: `1px solid ${phase === p ? phaseColors[p] : T.border}`,
+                transition: "all 0.3s",
+              }}>
+                {phaseLabels[p].split(" ")[0]}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ fontSize: 13, color: T.sub, marginBottom: 24, textAlign: "center", maxWidth: 280 }}>{intensityConfig.tip}</div>
+
+        {!started ? (
+          <button onClick={() => {
+            setStarted(true);
+            speak("Breathe in");
+          }} style={{ ...s.btn(intensityConfig.color, false), fontSize: 16, padding: "14px 32px", animation: "glow 2s infinite" }}>
+            😮‍💨 Start Breathing
+          </button>
+        ) : (
+          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color: T.sub, letterSpacing: 2 }}>
+            {phaseTick}s · {phaseLabels[phase]}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const prevExercise = () => {
@@ -1108,20 +1354,12 @@ export default function BoxingApp() {
         window.google.accounts.id.initialize({
           client_id: "227538733566-ma286c51m2h95eqcpjs41ttguqnhee72.apps.googleusercontent.com",
           callback: (response) => {
-            // Decode JWT payload (no sensitive ops needed here)
             try {
               const payload = JSON.parse(atob(response.credential.split(".")[1]));
-              loginUser({
+              // Store google info and redirect to profile completion step
+              setGooglePending({
                 name: payload.name || "Fighter",
                 email: payload.email || "",
-                gender: "other",
-                age: "",
-                height: "",
-                weight: "",
-                goal: "improve performance",
-                experience: "beginner",
-                bmi: null,
-                joinDate: new Date().toISOString(),
                 googleAvatar: payload.picture || "",
                 googleSub: payload.sub,
               });
@@ -1663,12 +1901,246 @@ export default function BoxingApp() {
   // ── DIET SCREEN ──────────────────────────────────────────────────────────────
   const DietScreen = () => {
     const plan = DIET_PLANS[user?.goal || "improve performance"];
+    const tdee = calcTDEE(user);
+
+    // ── FOOD CALORIE CALCULATOR ──
+    const FOOD_DB = {
+      "Rice (cooked)": 1.3, "Rice (raw)": 3.6, "Oats": 3.89, "Bread (white)": 2.65, "Bread (whole wheat)": 2.47,
+      "Pasta (cooked)": 1.57, "Potato (boiled)": 0.87, "Sweet Potato": 0.86, "Banana": 0.89,
+      "Apple": 0.52, "Orange": 0.47, "Mango": 0.60, "Dates": 2.77,
+      "Chicken Breast": 1.65, "Chicken Thigh": 2.09, "Egg (whole)": 1.55, "Egg White": 0.52,
+      "Tuna (canned)": 1.32, "Salmon": 2.08, "Sardines": 1.85,
+      "Beef (lean)": 2.50, "Mutton": 2.94, "Pork": 2.42,
+      "Milk (whole)": 0.61, "Milk (skim)": 0.34, "Curd / Yoghurt": 0.61, "Paneer": 2.65,
+      "Whey Protein (powder)": 4.0, "Peanut Butter": 5.88, "Almonds": 5.79,
+      "Olive Oil": 8.84, "Coconut Oil": 8.62, "Ghee": 8.99,
+      "Lentils (cooked)": 1.16, "Chickpeas (cooked)": 1.64, "Black Beans": 1.32,
+      "Spinach": 0.23, "Broccoli": 0.34, "Carrot": 0.41, "Cucumber": 0.15, "Tomato": 0.18,
+    };
+    const [foodItems, setFoodItems] = useState([]);
+    const [foodForm, setFoodForm] = useState({ name: "", grams: "", custom_cal: "" });
+    const [useCustom, setUseCustom] = useState(false);
+    const [mealName, setMealName] = useState("Breakfast");
+    const [savedMeals, setSavedMeals] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_meals") || "{}"); } catch { return {}; }
+    });
+
+    const addFood = () => {
+      const g = parseFloat(foodForm.grams);
+      if (!foodForm.name || !g) return;
+      let cal;
+      if (useCustom && foodForm.custom_cal) {
+        cal = parseFloat(foodForm.custom_cal);
+      } else {
+        const kcalPer100 = FOOD_DB[foodForm.name];
+        if (!kcalPer100) return;
+        cal = Math.round(kcalPer100 * g);
+      }
+      const item = {
+        id: Date.now(),
+        name: foodForm.name || "Custom Food",
+        grams: g,
+        calories: cal,
+        protein: foodForm.name ? Math.round((FOOD_DB[foodForm.name] ? g * (["Chicken Breast", "Tuna (canned)", "Egg White", "Whey Protein (powder)", "Salmon"].includes(foodForm.name) ? 0.22 : ["Egg (whole)", "Beef (lean)", "Mutton"].includes(foodForm.name) ? 0.20 : ["Lentils (cooked)", "Chickpeas (cooked)"].includes(foodForm.name) ? 0.09 : 0.04) : 0)) : 0,
+      };
+      setFoodItems(prev => [...prev, item]);
+      setFoodForm(f => ({ ...f, grams: "", custom_cal: "" }));
+    };
+
+    const removeFood = (id) => setFoodItems(prev => prev.filter(f => f.id !== id));
+
+    const totalCals = foodItems.reduce((sum, f) => sum + f.calories, 0);
+    const totalProtein = foodItems.reduce((sum, f) => sum + (f.protein || 0), 0);
+    const remaining = tdee ? tdee.target - totalCals : null;
+
+    const saveMeal = () => {
+      if (!foodItems.length) return;
+      const updated = { ...savedMeals, [mealName]: { items: foodItems, total: totalCals, date: new Date().toLocaleDateString("en-GB") } };
+      setSavedMeals(updated);
+      try { localStorage.setItem("ironfist_meals", JSON.stringify(updated)); } catch { }
+    };
+
+    const loadMeal = (name) => {
+      if (savedMeals[name]) setFoodItems(savedMeals[name].items);
+    };
+
     return (
       <div style={{ padding: 16 }}>
         <div style={{ fontFamily: "'Bebas Neue'", fontSize: 38, letterSpacing: 4, color: T.accent2, marginBottom: 4 }}>DIET PLAN</div>
         <div style={{ fontSize: 13, color: T.sub, marginBottom: 8, letterSpacing: 2 }}>FUEL YOUR PERFORMANCE</div>
-        <div style={{ ...s.badge(T.accent2), display: "inline-block", marginBottom: 20, fontSize: 13 }}>Goal: {user?.goal?.toUpperCase() || "PERFORMANCE"} — {plan.calories}</div>
 
+        {/* Live calorie banner */}
+        {tdee ? (
+          <div style={{ ...s.card, background: `linear-gradient(135deg, ${T.accent2}18, ${T.card})`, border: `1px solid ${T.accent2}55`, marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 44, color: T.accent2, lineHeight: 1 }}>{tdee.target}</div>
+                <div style={{ fontSize: 11, color: T.sub, letterSpacing: 2 }}>DAILY KCAL TARGET</div>
+                <div style={{ fontSize: 12, color: T.sub, marginTop: 4 }}>
+                  {user?.goal === "lose fat" ? "🔥 −18% deficit" : user?.goal === "build muscle" ? "💪 +10% surplus" : "⚡ Maintenance"}
+                  {" · "}TDEE {tdee.tdee} kcal
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                {[["🥩", tdee.protein + "g", "Protein", T.accent], ["🍚", tdee.carbs + "g", "Carbs", T.accent2], ["🥑", tdee.fat + "g", "Fat", T.green]].map(([icon, val, lbl, color]) => (
+                  <div key={lbl} style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 18 }}>{icon}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 16, color, fontWeight: 700 }}>{val}</div>
+                    <div style={{ fontSize: 10, color: T.sub }}>{lbl}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: T.sub, marginTop: 8, fontStyle: "italic" }}>
+              Personalised for your profile · Update in 👤 Profile to recalculate
+            </div>
+          </div>
+        ) : (
+          <div style={{ ...s.badge(T.accent2), display: "inline-block", marginBottom: 16, fontSize: 13 }}>Goal: {user?.goal?.toUpperCase() || "PERFORMANCE"} — {plan.calories}</div>
+        )}
+
+        {/* ══ FOOD CALORIE CALCULATOR ══ */}
+        <div style={{ ...s.card, border: `1px solid ${T.green}44`, marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 3, color: T.green, marginBottom: 4 }}>🍽️ FOOD CALORIE CALCULATOR</div>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 14, letterSpacing: 1 }}>Track exactly what you eat and see calories in real time</div>
+
+          {/* Totals dashboard */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+            {[
+              { label: "Calories Eaten", val: totalCals, color: T.accent2, unit: "kcal" },
+              { label: "Protein", val: `~${totalProtein}`, color: T.accent, unit: "g" },
+              { label: remaining !== null ? (remaining >= 0 ? "Remaining" : "Over by") : "Target", val: remaining !== null ? Math.abs(remaining) : (tdee?.target || "—"), color: remaining !== null ? (remaining >= 0 ? T.green : T.accent) : T.sub, unit: "kcal" },
+            ].map((st, i) => (
+              <div key={i} style={{ background: T.card2, borderRadius: 10, padding: "10px 8px", textAlign: "center", border: `1px solid ${st.color}22` }}>
+                <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 20, color: st.color, lineHeight: 1 }}>{st.val}</div>
+                <div style={{ fontSize: 9, color: st.color, letterSpacing: 1, marginTop: 2 }}>{st.unit}</div>
+                <div style={{ fontSize: 9, color: T.sub, marginTop: 2 }}>{st.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Calorie bar vs target */}
+          {tdee && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.sub, marginBottom: 3 }}>
+                <span>0 kcal</span><span>Target: {tdee.target} kcal</span>
+              </div>
+              <div style={{ height: 10, background: T.border, borderRadius: 5, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min((totalCals / tdee.target) * 100, 100)}%`, height: "100%", background: totalCals > tdee.target ? T.accent : totalCals > tdee.target * 0.9 ? T.accent2 : T.green, borderRadius: 5, transition: "width 0.5s, background 0.3s" }} />
+              </div>
+              <div style={{ textAlign: "right", fontSize: 10, color: totalCals > tdee.target ? T.accent : T.sub, marginTop: 2 }}>
+                {Math.round((totalCals / tdee.target) * 100)}% of daily target
+              </div>
+            </div>
+          )}
+
+          {/* Add food form */}
+          <div style={{ background: T.card2, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: T.accent2, fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>ADD FOOD ITEM</div>
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <button onClick={() => setUseCustom(false)} style={{ ...s.btn(!useCustom ? T.green : T.sub, useCustom), flex: 1, justifyContent: "center", fontSize: 12, padding: "8px 4px" }}>📚 From Database</button>
+              <button onClick={() => setUseCustom(true)} style={{ ...s.btn(useCustom ? T.accent2 : T.sub, !useCustom), flex: 1, justifyContent: "center", fontSize: 12, padding: "8px 4px" }}>✏️ Custom Entry</button>
+            </div>
+
+            {!useCustom ? (
+              <div style={{ marginBottom: 8 }}>
+                <label style={s.label}>Select Food</label>
+                <select value={foodForm.name} onChange={e => setFoodForm(f => ({ ...f, name: e.target.value }))} style={{ ...s.input, marginBottom: 0 }}>
+                  <option value="">— Choose a food —</option>
+                  {Object.entries({
+                    "🍚 Grains & Carbs": ["Rice (cooked)", "Rice (raw)", "Oats", "Bread (white)", "Bread (whole wheat)", "Pasta (cooked)", "Potato (boiled)", "Sweet Potato"],
+                    "🍎 Fruits": ["Banana", "Apple", "Orange", "Mango", "Dates"],
+                    "🥩 Proteins": ["Chicken Breast", "Chicken Thigh", "Egg (whole)", "Egg White", "Tuna (canned)", "Salmon", "Sardines", "Beef (lean)", "Mutton", "Pork"],
+                    "🥛 Dairy": ["Milk (whole)", "Milk (skim)", "Curd / Yoghurt", "Paneer"],
+                    "💪 Supplements & Fats": ["Whey Protein (powder)", "Peanut Butter", "Almonds", "Olive Oil", "Coconut Oil", "Ghee"],
+                    "🫘 Legumes": ["Lentils (cooked)", "Chickpeas (cooked)", "Black Beans"],
+                    "🥦 Vegetables": ["Spinach", "Broccoli", "Carrot", "Cucumber", "Tomato"],
+                  }).map(([group, items]) => (
+                    <optgroup key={group} label={group}>
+                      {items.map(item => (
+                        <option key={item} value={item}>{item} — {FOOD_DB[item]} kcal/g</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                {foodForm.name && FOOD_DB[foodForm.name] && (
+                  <div style={{ fontSize: 11, color: T.green, marginTop: 4 }}>
+                    📊 {FOOD_DB[foodForm.name]} kcal per gram · {Math.round(FOOD_DB[foodForm.name] * 100)} kcal per 100g
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ marginBottom: 8 }}>
+                <label style={s.label}>Food Name</label>
+                <input style={s.input} placeholder="e.g. Idli, Dosa, Dal..." value={foodForm.name} onChange={e => setFoodForm(f => ({ ...f, name: e.target.value }))} />
+                <label style={s.label}>Calories (kcal)</label>
+                <input type="number" style={s.input} placeholder="Total calories for this serving" value={foodForm.custom_cal} onChange={e => setFoodForm(f => ({ ...f, custom_cal: e.target.value }))} />
+              </div>
+            )}
+
+            <label style={s.label}>Weight / Portion (grams)</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type="number" value={foodForm.grams} onChange={e => setFoodForm(f => ({ ...f, grams: e.target.value }))} placeholder="e.g. 200" style={{ ...s.input, flex: 1, marginBottom: 0 }} />
+              <button onClick={addFood} style={{ ...s.btn(T.green, false), padding: "10px 18px", whiteSpace: "nowrap" }}>+ Add</button>
+            </div>
+
+            {/* Quick gram presets */}
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              {[50, 100, 150, 200, 250, 300].map(g => (
+                <button key={g} onClick={() => setFoodForm(f => ({ ...f, grams: String(g) }))} style={{ ...s.badge(foodForm.grams === String(g) ? T.green : T.sub), cursor: "pointer", fontSize: 12, border: `1px solid ${foodForm.grams === String(g) ? T.green : T.border}` }}>{g}g</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Food list */}
+          {foodItems.length > 0 ? (
+            <div>
+              <div style={{ fontSize: 11, color: T.sub, letterSpacing: 2, marginBottom: 8 }}>ITEMS ADDED ({foodItems.length})</div>
+              {foodItems.map((item, i) => (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: T.card2, borderRadius: 8, marginBottom: 6, border: `1px solid ${T.border}` }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{item.name}</div>
+                    <div style={{ fontSize: 11, color: T.sub }}>{item.grams}g{item.protein ? ` · ~${item.protein}g protein` : ""}</div>
+                  </div>
+                  <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 16, color: T.accent2, fontWeight: 700 }}>{item.calories}</div>
+                  <div style={{ fontSize: 11, color: T.sub }}>kcal</div>
+                  <button onClick={() => removeFood(item.id)} style={{ background: "none", border: "none", color: T.accent, cursor: "pointer", fontSize: 16, padding: "0 4px" }}>✕</button>
+                </div>
+              ))}
+
+              {/* Save meal */}
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <select value={mealName} onChange={e => setMealName(e.target.value)} style={{ ...s.input, flex: 1, marginBottom: 0 }}>
+                  {["Breakfast", "Morning Snack", "Lunch", "Pre-Workout", "Post-Workout", "Dinner", "Late Snack"].map(m => <option key={m}>{m}</option>)}
+                </select>
+                <button onClick={saveMeal} style={{ ...s.btn(T.accent2, false), padding: "10px 14px", whiteSpace: "nowrap" }}>💾 Save</button>
+                <button onClick={() => setFoodItems([])} style={{ ...s.btn(T.sub, true), padding: "10px 10px" }}>🗑️</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "20px 0", color: T.sub, fontSize: 13 }}>
+              No items added yet. Select a food and enter grams above 👆
+            </div>
+          )}
+
+          {/* Saved meals */}
+          {Object.keys(savedMeals).length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 11, color: T.sub, letterSpacing: 2, marginBottom: 8 }}>SAVED MEALS</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {Object.entries(savedMeals).map(([name, meal]) => (
+                  <button key={name} onClick={() => loadMeal(name)} style={{ ...s.btn(T.accent2, true), fontSize: 12, padding: "6px 12px", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                    <span style={{ fontWeight: 700 }}>{name}</span>
+                    <span style={{ fontSize: 10, color: T.sub }}>{meal.total} kcal · {meal.date}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Meal plan */}
         {plan.meals.map((m, i) => (
           <div key={i} style={{ ...s.card, display: "flex", gap: 14 }}>
             <div style={{ width: 70, flexShrink: 0 }}>
@@ -1683,7 +2155,14 @@ export default function BoxingApp() {
 
         <div style={{ ...s.card }}>
           <div style={s.sectionTitle}>HYDRATION & SUPPLEMENTS</div>
-          {["Water: 3–4L daily, extra on training days", "Creatine: 5g daily (post-workout)", "Protein: 1.6–2.2g per kg bodyweight", "Carbs: highest on training days", "Omega-3: 1–2g fish oil daily", "Magnesium: 400mg at night for recovery"].map((tip, i) => (
+          {[
+            `Water: ${user?.weight ? Math.round(parseFloat(user.weight) * 0.04 * 10) / 10 : "3–4"}L daily, extra on training days`,
+            "Creatine: 5g daily (post-workout)",
+            `Protein: ${user?.weight ? Math.round(parseFloat(user.weight) * 2.0) : "120–180"}g daily target`,
+            "Carbs: highest on training days",
+            "Omega-3: 1–2g fish oil daily",
+            "Magnesium: 400mg at night for recovery"
+          ].map((tip, i) => (
             <div key={i} style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: `1px solid ${T.border}22`, alignItems: "center" }}>
               <div style={{ color: T.accent2 }}>•</div>
               <div style={{ fontSize: 14 }}>{tip}</div>
@@ -1939,59 +2418,970 @@ export default function BoxingApp() {
   };
 
   // ── PROGRESS SCREEN ──────────────────────────────────────────────────────────
-  const ProgressScreen = () => (
-    <div style={{ padding: 16 }}>
-      <div style={{ fontFamily: "'Bebas Neue'", fontSize: 38, letterSpacing: 4, color: T.accent3, marginBottom: 20 }}>PROGRESS</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-        {[
-          { n: streak, l: "Day Streak", color: T.accent },
-          { n: weekNumber, l: "Current Week", color: T.accent2 },
-          { n: "42", l: "Total Workouts", color: T.green },
-          { n: user?.bmi || "--", l: "BMI", color: T.accent3 },
-        ].map((st, i) => (
-          <div key={i} style={{ ...s.card, textAlign: "center" }}>
-            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 52, color: st.color, lineHeight: 1 }}>{st.n}</div>
-            <div style={{ fontSize: 11, color: T.sub, letterSpacing: 2 }}>{st.l}</div>
-          </div>
-        ))}
-      </div>
+  const ProgressScreen = () => {
+    const tdee = calcTDEE(user);
+    const bmiCat = user?.bmi ? getBMICategory(user.bmi) : null;
+    const joinDate = user?.joinDate ? new Date(user.joinDate) : null;
+    const daysSinceJoin = joinDate ? Math.max(1, Math.floor((Date.now() - joinDate) / 86400000)) : 1;
+    const weeksIn = Math.ceil(daysSinceJoin / 7);
+    const workoutsCompleted = Math.min(weeksIn * 6, daysSinceJoin); // ~6/week
+    const expLevel = user?.experience || "beginner";
 
-      <div style={s.card}>
-        <div style={s.sectionTitle}>WEEKLY ACTIVITY</div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 100, marginTop: 10 }}>
-          {[90, 100, 75, 60, 95, 85, 0].map((v, i) => (
-            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end" }}>
-                <div style={{ width: "100%", height: `${v}%`, background: i === todayIdx ? T.accent : T.accent + "44", borderRadius: "4px 4px 0 0", transition: "height 0.5s" }} />
+    // ── WEIGHT LOG ──
+    const [weightLog, setWeightLog] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_weightlog") || "[]"); } catch { return []; }
+    });
+    const [newWeight, setNewWeight] = useState("");
+    const addWeightEntry = () => {
+      const w = parseFloat(newWeight);
+      if (!w || w < 30 || w > 300) return;
+      const entry = { date: new Date().toLocaleDateString("en-GB"), weight: w, ts: Date.now() };
+      const updated = [...weightLog, entry].slice(-30);
+      setWeightLog(updated);
+      try { localStorage.setItem("ironfist_weightlog", JSON.stringify(updated)); } catch { }
+      setNewWeight("");
+    };
+    const weightStart = weightLog[0]?.weight || parseFloat(user?.weight) || null;
+    const weightNow = weightLog[weightLog.length - 1]?.weight || parseFloat(user?.weight) || null;
+    const weightDelta = weightStart && weightNow ? (weightNow - weightStart).toFixed(1) : null;
+    const weightGoalDir = user?.goal === "lose fat" ? -1 : user?.goal === "build muscle" ? 1 : 0;
+
+    // ── BODY STATS LOG ──
+    const [bodyLog, setBodyLog] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_bodylog") || "[]"); } catch { return []; }
+    });
+    const [bodyForm, setBodyForm] = useState({ chest: "", waist: "", hips: "", bicep: "", thigh: "" });
+    const [showBodyForm, setShowBodyForm] = useState(false);
+    const addBodyEntry = () => {
+      const entry = { date: new Date().toLocaleDateString("en-GB"), ts: Date.now(), ...Object.fromEntries(Object.entries(bodyForm).filter(([, v]) => v)) };
+      const updated = [...bodyLog, entry].slice(-12);
+      setBodyLog(updated);
+      try { localStorage.setItem("ironfist_bodylog", JSON.stringify(updated)); } catch { }
+      setBodyForm({ chest: "", waist: "", hips: "", bicep: "", thigh: "" });
+      setShowBodyForm(false);
+    };
+    const latestBody = bodyLog[bodyLog.length - 1] || {};
+    const prevBody = bodyLog[bodyLog.length - 2] || {};
+
+    // ── STRENGTH LOG ──
+    const [strengthLog, setStrengthLog] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_strengthlog") || "{}"); } catch { return {}; }
+    });
+    const [strForm, setStrForm] = useState({ exercise: "Pull-ups", value: "" });
+    const addStrengthEntry = () => {
+      if (!strForm.value) return;
+      const key = strForm.exercise;
+      const entry = { date: new Date().toLocaleDateString("en-GB"), value: parseFloat(strForm.value), ts: Date.now() };
+      const updated = { ...strengthLog, [key]: [...(strengthLog[key] || []).slice(-10), entry] };
+      setStrengthLog(updated);
+      try { localStorage.setItem("ironfist_strengthlog", JSON.stringify(updated)); } catch { }
+      setStrForm(f => ({ ...f, value: "" }));
+    };
+
+    // ── COMBO MASTERY ──
+    const [comboLog, setComboLog] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_combolog") || "{}"); } catch { return {}; }
+    });
+    const combos = [
+      "Jab → Cross", "Jab → Cross → Hook", "Double Jab → Cross",
+      "Jab → Cross → Hook → Cross", "Slip → Cross → Hook", "Body Jab → Cross → Head Hook",
+    ];
+    const setComboMastery = (combo, val) => {
+      const updated = { ...comboLog, [combo]: parseInt(val) };
+      setComboLog(updated);
+      try { localStorage.setItem("ironfist_combolog", JSON.stringify(updated)); } catch { };
+    };
+
+    // ── WORKOUT STREAK ──
+    const [workoutDays, setWorkoutDays] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_workoutdays") || "[]"); } catch { return []; }
+    });
+    const logTodayWorkout = () => {
+      const today = new Date().toLocaleDateString("en-GB");
+      if (workoutDays.includes(today)) return;
+      const updated = [...workoutDays, today].slice(-60);
+      setWorkoutDays(updated);
+      try { localStorage.setItem("ironfist_workoutdays", JSON.stringify(updated)); } catch { };
+    };
+    const last7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+      return workoutDays.includes(d.toLocaleDateString("en-GB"));
+    });
+    const currentStreak = (() => {
+      let s = 0;
+      for (let i = workoutDays.length - 1; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - s);
+        if (workoutDays[i] === d.toLocaleDateString("en-GB")) s++;
+        else break;
+      }
+      return s;
+    })();
+
+    // ── FITNESS AGE ESTIMATE ──
+    const fitnessAge = (() => {
+      if (!user?.age) return null;
+      const age = parseInt(user.age);
+      const bmi = parseFloat(user.bmi);
+      let bonus = 0;
+      if (expLevel === "intermediate") bonus = -2;
+      if (expLevel === "advanced") bonus = -5;
+      if (bmi && bmi < 25) bonus -= 1;
+      if (bmi && bmi > 30) bonus += 3;
+      return Math.max(16, age + bonus);
+    })();
+
+    // ── PROGRESS SCORE ──
+    const progressScore = Math.min(100, Math.round(
+      (currentStreak * 3) +
+      (weightLog.length * 5) +
+      (bodyLog.length * 8) +
+      (Object.keys(strengthLog).length * 6) +
+      (Object.keys(comboLog).length * 4)
+    ));
+
+    const SectionTitle = ({ children, color }) => (
+      <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 3, color: color || T.accent3, marginBottom: 12, paddingBottom: 6, borderBottom: `2px solid ${color || T.accent3}44` }}>{children}</div>
+    );
+
+    const Delta = ({ val, unit, good }) => {
+      if (val === null || val === undefined) return null;
+      const n = parseFloat(val);
+      const isGood = good === "up" ? n >= 0 : n <= 0;
+      const color = n === 0 ? T.sub : isGood ? T.green : T.accent;
+      return <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color }}>{n > 0 ? "+" : ""}{val}{unit}</span>;
+    };
+
+    return (
+      <div style={{ padding: 16 }}>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 38, letterSpacing: 4, color: T.accent3, marginBottom: 4 }}>PROGRESS</div>
+        <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2, marginBottom: 20 }}>TRACKING YOUR FIGHTER EVOLUTION</div>
+
+        {/* ── OVERALL SCORE ── */}
+        <div style={{ ...s.card, background: `linear-gradient(135deg, ${T.accent3}18, ${T.card})`, border: `1px solid ${T.accent3}44`, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <div style={{ position: "relative", width: 100, height: 100, flexShrink: 0 }}>
+              <svg width="100" height="100" viewBox="0 0 120 120" style={{ transform: "rotate(-90deg)" }}>
+                <circle cx="60" cy="60" r="50" fill="none" stroke={T.border} strokeWidth="10" />
+                <circle cx="60" cy="60" r="50" fill="none" stroke={T.accent3} strokeWidth="10"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 50}
+                  strokeDashoffset={2 * Math.PI * 50 * (1 - progressScore / 100)}
+                  style={{ transition: "stroke-dashoffset 1s ease" }} />
+              </svg>
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center" }}>
+                <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 22, color: T.accent3, lineHeight: 1 }}>{progressScore}</div>
+                <div style={{ fontSize: 8, color: T.sub, letterSpacing: 1 }}>SCORE</div>
               </div>
-              <div style={{ fontSize: 10, color: i === todayIdx ? T.accent : T.sub }}>{dayNames[i]}</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, color: T.text, letterSpacing: 2 }}>FIGHTER PROFILE</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8 }}>
+                {[
+                  { label: "Training Days", val: workoutDays.length, color: T.accent },
+                  { label: "Week", val: `Wk ${weekNumber}`, color: T.accent2 },
+                  { label: "Streak", val: `${currentStreak}d 🔥`, color: T.green },
+                  { label: "Fitness Age", val: fitnessAge ? `${fitnessAge}yr` : "—", color: T.accent3 },
+                ].map((st, i) => (
+                  <div key={i} style={{ background: T.card2, borderRadius: 8, padding: "6px 10px" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 15, color: st.color }}>{st.val}</div>
+                    <div style={{ fontSize: 9, color: T.sub, letterSpacing: 1 }}>{st.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.sub, marginBottom: 4 }}>
+              <span>PROGRESS SCORE</span><span>{progressScore}/100</span>
+            </div>
+            <div style={{ height: 8, background: T.border, borderRadius: 4 }}>
+              <div style={{ width: `${progressScore}%`, height: "100%", borderRadius: 4, background: `linear-gradient(90deg, ${T.accent}, ${T.accent3})`, transition: "width 1s ease" }} />
+            </div>
+            <div style={{ fontSize: 10, color: T.sub, marginTop: 4 }}>Log workouts, weight, body measurements & combo mastery to raise your score</div>
+          </div>
+        </div>
+
+        {/* ── WEEKLY ACTIVITY HEATMAP ── */}
+        <div style={{ ...s.card, marginBottom: 16 }}>
+          <SectionTitle color={T.accent}>📅 WEEKLY ACTIVITY</SectionTitle>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {last7.map((done, i) => {
+              const d = new Date(); d.setDate(d.getDate() - (6 - i));
+              const isToday = i === 6;
+              return (
+                <div key={i} style={{ flex: 1, textAlign: "center" }}>
+                  <div style={{ height: 48, background: done ? T.accent : isToday ? T.border : T.card2, borderRadius: 8, border: `2px solid ${done ? T.accent : isToday ? T.accent + "44" : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: done ? 20 : 14, color: done ? "#fff" : T.sub, transition: "all 0.3s" }}>
+                    {done ? "🥊" : isToday ? "⬤" : "·"}
+                  </div>
+                  <div style={{ fontSize: 9, color: isToday ? T.accent : T.sub, marginTop: 4, letterSpacing: 1 }}>{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][(d.getDay())]}</div>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={logTodayWorkout} style={{ ...s.btn(workoutDays.includes(new Date().toLocaleDateString("en-GB")) ? T.green : T.accent, workoutDays.includes(new Date().toLocaleDateString("en-GB"))), width: "100%", justifyContent: "center", fontSize: 14 }}>
+            {workoutDays.includes(new Date().toLocaleDateString("en-GB")) ? "✓ Today Logged" : "🥊 Log Today's Workout"}
+          </button>
+        </div>
+
+        {/* ── PROGRESS GRAPH (Trading-style) ── */}
+        {(() => {
+          // Build daily progress score history — one data point per workout day
+          // Score increases based on: streak continuity, total days, week number, logs
+          const allDays = [...workoutDays].sort();
+          const scoreHistory = allDays.map((d, idx) => {
+            const streakAtDay = (() => {
+              let s = 0;
+              for (let j = idx; j >= 0; j--) {
+                const prev = new Date(allDays[j].split("/").reverse().join("-"));
+                const expected = new Date(allDays[idx].split("/").reverse().join("-"));
+                expected.setDate(expected.getDate() - (idx - j));
+                if (allDays[j] === expected.toLocaleDateString("en-GB")) s++;
+                else break;
+              }
+              return s;
+            })();
+            const base = (idx + 1) * 3;
+            const streakBonus = Math.min(streakAtDay * 2, 30);
+            const logBonus = Math.floor(idx * 0.5);
+            return { date: d, score: Math.min(100, base + streakBonus + logBonus) };
+          });
+
+          if (scoreHistory.length < 2) return (
+            <div style={{ ...s.card, marginBottom: 16 }}>
+              <SectionTitle color={T.green}>📈 PROGRESS CHART</SectionTitle>
+              <div style={{ textAlign: "center", padding: "24px 16px", color: T.sub, fontSize: 13 }}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>📊</div>
+                Complete at least 2 workouts to see your progress chart. Every session adds a new data point!
+              </div>
+            </div>
+          );
+
+          const W = 320, H = 120, PAD = 16;
+          const minS = Math.max(0, Math.min(...scoreHistory.map(x => x.score)) - 5);
+          const maxS = Math.min(100, Math.max(...scoreHistory.map(x => x.score)) + 5);
+          const range = maxS - minS || 1;
+          const pts = scoreHistory.map((p, i) => ({
+            x: PAD + (i / (scoreHistory.length - 1)) * (W - PAD * 2),
+            y: H - PAD - ((p.score - minS) / range) * (H - PAD * 2),
+            ...p,
+          }));
+
+          const pathD = pts.map((p, i) => {
+            if (i === 0) return `M ${p.x} ${p.y}`;
+            const prev = pts[i - 1];
+            const cpx = (prev.x + p.x) / 2;
+            return `C ${cpx} ${prev.y}, ${cpx} ${p.y}, ${p.x} ${p.y}`;
+          }).join(" ");
+
+          const areaD = pathD + ` L ${pts[pts.length - 1].x} ${H - PAD} L ${pts[0].x} ${H - PAD} Z`;
+
+          const latest = scoreHistory[scoreHistory.length - 1];
+          const prev = scoreHistory[scoreHistory.length - 2];
+          const delta = latest.score - prev.score;
+          const trendUp = delta >= 0;
+
+          // Find best/worst streaks for annotation
+          const peak = scoreHistory.reduce((a, b) => a.score > b.score ? a : b);
+
+          return (
+            <div style={{ ...s.card, marginBottom: 16, background: `linear-gradient(135deg, ${T.green}0a, ${T.card})`, border: `1px solid ${T.green}33` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <SectionTitle color={T.green}>📈 TRAINING PROGRESS</SectionTitle>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 22, color: trendUp ? T.green : T.accent, lineHeight: 1 }}>
+                    {trendUp ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}
+                  </div>
+                  <div style={{ fontSize: 10, color: T.sub, letterSpacing: 1 }}>vs last session</div>
+                </div>
+              </div>
+
+              {/* Mini stats row */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                {[
+                  { label: "Current", val: latest.score.toFixed(0), color: T.green },
+                  { label: "Peak", val: peak.score.toFixed(0), color: T.accent2 },
+                  { label: "Sessions", val: scoreHistory.length, color: T.accent3 },
+                  { label: "Trend", val: trendUp ? "↑ UP" : "↓ DOWN", color: trendUp ? T.green : T.accent },
+                ].map((st, i) => (
+                  <div key={i} style={{ flex: 1, background: T.card2, borderRadius: 8, padding: "8px 6px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 14, color: st.color, lineHeight: 1 }}>{st.val}</div>
+                    <div style={{ fontSize: 9, color: T.sub, letterSpacing: 1, marginTop: 3 }}>{st.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* SVG chart */}
+              <div style={{ overflowX: "auto" }}>
+                <svg width={Math.max(W, scoreHistory.length * 28)} height={H + 20} style={{ display: "block" }}
+                  viewBox={`0 0 ${Math.max(W, scoreHistory.length * 28)} ${H + 20}`}>
+                  <defs>
+                    <linearGradient id="progGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={T.green} stopOpacity="0.4" />
+                      <stop offset="100%" stopColor={T.green} stopOpacity="0.02" />
+                    </linearGradient>
+                  </defs>
+                  {/* Grid lines */}
+                  {[25, 50, 75, 100].map(g => {
+                    const gy = H - PAD - ((g - minS) / range) * (H - PAD * 2);
+                    if (gy < PAD || gy > H - PAD) return null;
+                    return (
+                      <g key={g}>
+                        <line x1={PAD} y1={gy} x2={W - PAD} y2={gy} stroke={T.border} strokeWidth="1" strokeDasharray="3 4" />
+                        <text x={PAD - 2} y={gy + 4} fontSize="8" fill={T.sub} textAnchor="end">{g}</text>
+                      </g>
+                    );
+                  })}
+                  {/* Area fill */}
+                  <path d={areaD} fill="url(#progGrad)" />
+                  {/* Line */}
+                  <path d={pathD} fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* Data points */}
+                  {pts.map((p, i) => (
+                    <g key={i}>
+                      <circle cx={p.x} cy={p.y} r={i === pts.length - 1 ? 6 : 4}
+                        fill={i === pts.length - 1 ? T.green : T.card}
+                        stroke={T.green} strokeWidth="2" />
+                      {/* Latest point glow */}
+                      {i === pts.length - 1 && (
+                        <circle cx={p.x} cy={p.y} r="10" fill={T.green} opacity="0.15" />
+                      )}
+                    </g>
+                  ))}
+                  {/* Peak annotation */}
+                  {(() => {
+                    const peakPt = pts.reduce((a, b) => a.score > b.score ? a : b);
+                    return (
+                      <g>
+                        <line x1={peakPt.x} y1={peakPt.y - 6} x2={peakPt.x} y2={peakPt.y - 18} stroke={T.accent2} strokeWidth="1.5" strokeDasharray="2 2" />
+                        <text x={peakPt.x} y={peakPt.y - 22} fontSize="9" fill={T.accent2} textAnchor="middle">PEAK</text>
+                      </g>
+                    );
+                  })()}
+                  {/* X axis date labels */}
+                  {pts.filter((_, i) => i === 0 || i === pts.length - 1 || (pts.length > 7 && i % Math.floor(pts.length / 4) === 0)).map((p, i) => (
+                    <text key={i} x={p.x} y={H + 16} fontSize="8" fill={T.sub} textAnchor="middle">{p.date.slice(0, 5)}</text>
+                  ))}
+                </svg>
+              </div>
+
+              <div style={{ fontSize: 11, color: T.sub, marginTop: 6, textAlign: "center" }}>
+                Score grows with consistent training, streaks, and logging. Keep going! 💪
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── WEIGHT TRACKER ── */}
+        <div style={{ ...s.card, marginBottom: 16 }}>
+          <SectionTitle color={T.accent2}>⚖️ WEIGHT TRACKER</SectionTitle>
+          <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+            {[
+              { label: "Start", val: weightStart ? `${weightStart}kg` : "—", color: T.sub },
+              { label: "Current", val: weightNow ? `${weightNow}kg` : "—", color: T.accent2 },
+              { label: "Change", val: weightDelta !== null ? <Delta val={weightDelta} unit="kg" good={weightGoalDir === 1 ? "up" : weightGoalDir === -1 ? "down" : "flat"} /> : "—", color: T.text },
+              { label: "Target", val: user?.weight && user?.goal === "lose fat" ? `${Math.round(parseFloat(user.weight) * 0.9)}kg` : user?.weight && user?.goal === "build muscle" ? `${Math.round(parseFloat(user.weight) * 1.05)}kg` : "—", color: T.green },
+            ].map((st, i) => (
+              <div key={i} style={{ ...s.card, background: T.card2, padding: "10px 14px", flex: 1, minWidth: 70, textAlign: "center" }}>
+                <div style={{ fontSize: 16, color: st.color, fontFamily: "'JetBrains Mono'", lineHeight: 1 }}>{st.val}</div>
+                <div style={{ fontSize: 9, color: T.sub, letterSpacing: 1, marginTop: 3 }}>{st.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Mini weight chart */}
+          {weightLog.length > 1 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: T.sub, letterSpacing: 2, marginBottom: 6 }}>TREND (last {Math.min(weightLog.length, 14)} entries)</div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 64 }}>
+                {weightLog.slice(-14).map((e, i) => {
+                  const min = Math.min(...weightLog.slice(-14).map(x => x.weight));
+                  const max = Math.max(...weightLog.slice(-14).map(x => x.weight));
+                  const pct = max === min ? 50 : ((e.weight - min) / (max - min)) * 80 + 10;
+                  return (
+                    <div key={i} title={`${e.date}: ${e.weight}kg`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" }}>
+                      <div style={{ width: "100%", height: `${pct}%`, background: i === weightLog.slice(-14).length - 1 ? T.accent2 : T.accent2 + "66", borderRadius: "3px 3px 0 0", transition: "height 0.5s" }} />
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: T.sub, marginTop: 2 }}>
+                <span>{weightLog.slice(-14)[0]?.date}</span>
+                <span>{weightLog[weightLog.length - 1]?.date}</span>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <input type="number" value={newWeight} onChange={e => setNewWeight(e.target.value)} placeholder="Weight in kg" style={{ ...s.input, flex: 1, marginBottom: 0 }} />
+            <button onClick={addWeightEntry} style={{ ...s.btn(T.accent2, false), padding: "10px 16px", whiteSpace: "nowrap" }}>+ Log</button>
+          </div>
+          {weightLog.length > 0 && (
+            <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {weightLog.slice(-5).map((e, i) => (
+                <div key={i} style={{ ...s.badge(T.sub), fontSize: 11 }}>{e.date}: {e.weight}kg</div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── BODY MEASUREMENTS ── */}
+        <div style={{ ...s.card, marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <SectionTitle color={T.accent3}>📏 BODY MEASUREMENTS</SectionTitle>
+            <button onClick={() => setShowBodyForm(f => !f)} style={{ ...s.btn(T.accent3, true), padding: "6px 12px", fontSize: 12, marginBottom: 12 }}>{showBodyForm ? "✕" : "+ Log"}</button>
+          </div>
+
+          {showBodyForm && (
+            <div style={{ background: T.card2, borderRadius: 10, padding: 14, marginBottom: 14, animation: "slideUp 0.3s ease" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                {[["chest", "Chest (cm)"], ["waist", "Waist (cm)"], ["hips", "Hips (cm)"], ["bicep", "Bicep (cm)"], ["thigh", "Thigh (cm)"]].map(([k, lbl]) => (
+                  <div key={k}>
+                    <label style={{ ...s.label, marginBottom: 3 }}>{lbl}</label>
+                    <input type="number" value={bodyForm[k]} onChange={e => setBodyForm(f => ({ ...f, [k]: e.target.value }))} placeholder="—" style={{ ...s.input, marginBottom: 0 }} />
+                  </div>
+                ))}
+              </div>
+              <button onClick={addBodyEntry} style={{ ...s.btn(T.accent3, false), width: "100%", justifyContent: "center" }}>✓ Save Measurements</button>
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            {[["Chest", "chest", "📦"], ["Waist", "waist", "〰️"], ["Hips", "hips", "🍑"], ["Bicep", "bicep", "💪"], ["Thigh", "thigh", "🦵"]].map(([lbl, k, icon]) => {
+              const curr = latestBody[k];
+              const prev = prevBody[k];
+              const delta = curr && prev ? (parseFloat(curr) - parseFloat(prev)).toFixed(1) : null;
+              return (
+                <div key={k} style={{ background: T.card2, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 18, color: curr ? T.accent3 : T.sub }}>{curr ? `${curr}cm` : "—"}</div>
+                  <div style={{ fontSize: 9, color: T.sub, letterSpacing: 1 }}>{lbl}</div>
+                  {delta !== null && <div style={{ marginTop: 4 }}><Delta val={delta} unit="cm" good={k === "waist" ? "down" : "up"} /></div>}
+                </div>
+              );
+            })}
+          </div>
+          {bodyLog.length > 0 && <div style={{ fontSize: 11, color: T.sub, marginTop: 8 }}>Last measured: {latestBody.date} · {bodyLog.length} sessions logged</div>}
+        </div>
+
+        {/* ── BMI & BODY COMPOSITION ── */}
+        <div style={{ ...s.card, marginBottom: 16 }}>
+          <SectionTitle color={T.green}>🏋️ BODY COMPOSITION</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+            {[
+              { label: "BMI", val: user?.bmi || "—", color: bmiCat?.color || T.sub, sub: bmiCat?.label || "—" },
+              { label: "Weight", val: user?.weight ? `${user.weight}kg` : "—", color: T.accent2, sub: "Current" },
+              { label: "Height", val: user?.height ? `${user.height}cm` : "—", color: T.accent3, sub: "Standing" },
+            ].map((st, i) => (
+              <div key={i} style={{ background: T.card2, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 26, color: st.color, lineHeight: 1 }}>{st.val}</div>
+                <div style={{ fontSize: 9, color: T.sub, letterSpacing: 1, marginTop: 3 }}>{st.label}</div>
+                <div style={{ fontSize: 10, color: st.color, marginTop: 2 }}>{st.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* BMI scale */}
+          {user?.bmi && (
+            <div>
+              <div style={{ fontSize: 11, color: T.sub, letterSpacing: 2, marginBottom: 6 }}>BMI SCALE</div>
+              <div style={{ position: "relative", height: 14, borderRadius: 7, background: `linear-gradient(90deg, #3b82f6 0%, #22c55e 25%, #f5a623 50%, #e8392a 75%, #9333ea 100%)`, marginBottom: 6 }}>
+                <div style={{ position: "absolute", top: -2, width: 18, height: 18, borderRadius: "50%", background: "#fff", border: `3px solid ${bmiCat?.color}`, transform: "translateX(-50%)", left: `${Math.min(Math.max(((parseFloat(user.bmi) - 15) / 25) * 100, 2), 98)}%`, transition: "left 0.8s" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: T.sub }}>
+                <span>Underweight &lt;18.5</span><span>Normal 18.5–25</span><span>Overweight 25–30</span><span>Obese 30+</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── STRENGTH LOG ── */}
+        <div style={{ ...s.card, marginBottom: 16 }}>
+          <SectionTitle color={T.accent}>🏆 STRENGTH LOG (Personal Records)</SectionTitle>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            <select value={strForm.exercise} onChange={e => setStrForm(f => ({ ...f, exercise: e.target.value }))}
+              style={{ ...s.input, flex: 2, marginBottom: 0, minWidth: 140 }}>
+              {["Pull-ups", "Push-ups", "Squats", "Plank (sec)", "Dead Hang (sec)", "Burpees", "Wide Grip Pull-ups", "Chin-ups"].map(ex => (
+                <option key={ex} value={ex}>{ex}</option>
+              ))}
+            </select>
+            <input type="number" value={strForm.value} onChange={e => setStrForm(f => ({ ...f, value: e.target.value }))} placeholder="Reps / sec" style={{ ...s.input, flex: 1, marginBottom: 0, minWidth: 80 }} />
+            <button onClick={addStrengthEntry} style={{ ...s.btn(T.accent, false), padding: "10px 14px" }}>+ PR</button>
+          </div>
+          {Object.keys(strengthLog).length === 0 ? (
+            <div style={{ textAlign: "center", padding: "20px", color: T.sub, fontSize: 13 }}>No PRs logged yet — log your first rep count above! 💪</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {Object.entries(strengthLog).map(([ex, entries]) => {
+                const best = Math.max(...entries.map(e => e.value));
+                const latest = entries[entries.length - 1]?.value;
+                const prev = entries[entries.length - 2]?.value;
+                const delta = prev ? (latest - prev).toFixed(0) : null;
+                const pct = Math.min((best / { "Pull-ups": 30, "Push-ups": 100, "Squats": 200, "Plank (sec)": 300, "Dead Hang (sec)": 120, "Burpees": 50, "Wide Grip Pull-ups": 25, "Chin-ups": 25 }[ex] || 50) * 100, 100);
+                return (
+                  <div key={ex}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{ex}</div>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        {delta !== null && <Delta val={delta} unit="" good="up" />}
+                        <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 15, color: T.accent }}>🏆 {best}</span>
+                      </div>
+                    </div>
+                    <div style={{ height: 8, background: T.border, borderRadius: 4 }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, ${T.accent}, ${T.green})`, borderRadius: 4, transition: "width 0.8s" }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                      {entries.slice(-6).map((e, i) => (
+                        <div key={i} style={{ ...s.badge(i === entries.slice(-6).length - 1 ? T.accent : T.sub), fontSize: 10 }}>{e.date}: {e.value}</div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── COMBO MASTERY ── */}
+        <div style={{ ...s.card, marginBottom: 16 }}>
+          <SectionTitle color={T.accent2}>🥊 BOXING COMBO MASTERY</SectionTitle>
+          <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>Rate your mastery for each combination (0–100%)</div>
+          {combos.map((combo, i) => {
+            const val = comboLog[combo] || 0;
+            const color = val >= 80 ? T.green : val >= 50 ? T.accent2 : T.accent;
+            return (
+              <div key={i} style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{combo}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color }}>{val}%</span>
+                    {val >= 80 && <span style={s.badge(T.green)}>✓ Mastered</span>}
+                  </div>
+                </div>
+                <input type="range" min="0" max="100" step="5" value={val}
+                  onChange={e => setComboMastery(combo, e.target.value)}
+                  style={{ width: "100%", accentColor: color, cursor: "pointer" }} />
+                <div style={{ height: 6, background: T.border, borderRadius: 3, marginTop: 4 }}>
+                  <div style={{ width: `${val}%`, height: "100%", background: `linear-gradient(90deg, ${T.accent}, ${color})`, borderRadius: 3, transition: "width 0.3s" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── CALORIE BALANCE ── */}
+        {tdee && (
+          <div style={{ ...s.card, marginBottom: 16, background: `linear-gradient(135deg, ${T.accent2}0a, ${T.card})`, border: `1px solid ${T.accent2}33` }}>
+            <SectionTitle color={T.accent2}>🔥 CALORIE BALANCE</SectionTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              {[
+                { label: "BMR", val: tdee.bmr, color: T.sub },
+                { label: "TDEE", val: tdee.tdee, color: T.accent2 },
+                { label: "Target", val: tdee.target, color: T.green },
+              ].map((st, i) => (
+                <div key={i} style={{ background: T.card2, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 17, color: st.color }}>{st.val}</div>
+                  <div style={{ fontSize: 9, color: T.sub, letterSpacing: 1 }}>{st.label} kcal</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: T.sub }}>
+              <span>{user?.goal === "lose fat" ? "−18% calorie deficit" : user?.goal === "build muscle" ? "+10% calorie surplus" : "Maintenance calories"}</span>
+              <span style={{ color: T.accent2, fontWeight: 700 }}>{tdee.protein}g P · {tdee.carbs}g C · {tdee.fat}g F</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── MILESTONES ── */}
+        <div style={{ ...s.card }}>
+          <SectionTitle color={T.green}>🎖️ MILESTONES</SectionTitle>
+          {[
+            { label: "First Workout Logged", done: workoutDays.length >= 1, icon: "🥊" },
+            { label: "7-Day Streak", done: currentStreak >= 7, icon: "🔥" },
+            { label: "30-Day Streak", done: currentStreak >= 30, icon: "💎" },
+            { label: "Logged Weight 5× Times", done: weightLog.length >= 5, icon: "⚖️" },
+            { label: "Logged Body Measurements", done: bodyLog.length >= 1, icon: "📏" },
+            { label: "3 Combo Masteries > 80%", done: Object.values(comboLog).filter(v => v >= 80).length >= 3, icon: "🎯" },
+            { label: "5 PRs Logged", done: Object.keys(strengthLog).length >= 5, icon: "🏆" },
+            { label: "Reached Week 4", done: weekNumber >= 4, icon: "📅" },
+          ].map((m, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.border}22` }}>
+              <div style={{ fontSize: 22, width: 32, textAlign: "center" }}>{m.icon}</div>
+              <div style={{ flex: 1, fontSize: 14, color: m.done ? T.text : T.sub }}>{m.label}</div>
+              <div style={{ fontSize: 18 }}>{m.done ? "✅" : "⬜"}</div>
             </div>
           ))}
         </div>
       </div>
+    );
+  };
 
-      <div style={s.card}>
-        <div style={s.sectionTitle}>BOXING COMBOS MASTERED</div>
-        {[
-          { combo: "Jab → Cross", mastery: 85 },
-          { combo: "Jab → Cross → Hook", mastery: 70 },
-          { combo: "Double Jab → Cross", mastery: 60 },
-          { combo: "Jab → Cross → Hook → Cross", mastery: 45 },
-          { combo: "Slip → Cross → Hook", mastery: 30 },
-        ].map((c, i) => (
-          <div key={i} style={{ marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{c.combo}</div>
-              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color: T.accent }}>{c.mastery}%</div>
+  // ── GOOGLE COMPLETION MODAL ─────────────────────────────────────────────────
+  // Shows after Google sign-in to collect body stats + intensity
+  const GoogleCompletionModal = () => {
+    const [gForm, setGForm] = useState({
+      gender: "male", age: "", height: "", weight: "",
+      goal: "improve performance", experience: "beginner",
+    });
+    const bmi = gForm.height && gForm.weight ? calcBMI(gForm.weight, gForm.height) : null;
+    const bmiCat = bmi ? getBMICategory(bmi) : null;
+
+    const finishGoogleSetup = () => {
+      const finalBmi = bmi;
+      loginUser({
+        ...googlePending,
+        ...gForm,
+        bmi: finalBmi,
+        joinDate: new Date().toISOString(),
+      });
+      setGooglePending(null);
+    };
+
+    return (
+      <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ ...s.card, maxWidth: 440, width: "100%", padding: 28, maxHeight: "90vh", overflowY: "auto" }}>
+          {/* Avatar + name */}
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            {googlePending?.googleAvatar && (
+              <img src={googlePending.googleAvatar} alt="avatar" style={{ width: 64, height: 64, borderRadius: "50%", marginBottom: 10, border: `3px solid ${T.accent}` }} />
+            )}
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 3, color: T.text }}>
+              WELCOME, {googlePending?.name?.toUpperCase()}!
             </div>
-            <div style={{ height: 6, background: T.border, borderRadius: 3 }}>
-              <div style={{ height: "100%", width: `${c.mastery}%`, background: `linear-gradient(90deg, ${T.accent}, ${T.accent2})`, borderRadius: 3 }} />
+            <div style={{ fontSize: 13, color: T.sub, marginTop: 4 }}>
+              Complete your fighter profile to personalise your training
             </div>
           </div>
-        ))}
+
+          {/* Body stats */}
+          <div style={{ ...s.card, background: T.card2, marginBottom: 16 }}>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, color: T.accent2, marginBottom: 14 }}>YOUR BODY</div>
+            <label style={s.label}>Gender</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {["male", "female", "other"].map(g => (
+                <button key={g} onClick={() => setGForm(f => ({ ...f, gender: g }))}
+                  style={{ ...s.btn(gForm.gender === g ? T.accent : T.sub, gForm.gender !== g), flex: 1, justifyContent: "center", padding: "9px 4px", fontSize: 12 }}>
+                  {g === "male" ? "♂ Male" : g === "female" ? "♀ Female" : "⚧ Other"}
+                </button>
+              ))}
+            </div>
+            <label style={s.label}>Age</label>
+            <input style={s.input} type="number" placeholder="Years" value={gForm.age} onChange={e => setGForm(f => ({ ...f, age: e.target.value }))} />
+            <label style={s.label}>Height (cm)</label>
+            <input style={s.input} type="number" placeholder="e.g. 175" value={gForm.height} onChange={e => setGForm(f => ({ ...f, height: e.target.value }))} />
+            <label style={s.label}>Weight (kg)</label>
+            <input style={s.input} type="number" placeholder="e.g. 75" value={gForm.weight} onChange={e => setGForm(f => ({ ...f, weight: e.target.value }))} />
+            {bmi && bmiCat && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: bmiCat.color + "18", border: `1px solid ${bmiCat.color}44`, borderRadius: 10, padding: "10px 14px", marginTop: 4 }}>
+                <div>
+                  <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 28, color: bmiCat.color, lineHeight: 1 }}>{bmi}</div>
+                  <div style={{ fontSize: 10, color: T.sub, letterSpacing: 2 }}>BMI</div>
+                </div>
+                <div style={{ ...s.badge(bmiCat.color), fontSize: 13 }}>{bmiCat.label}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Goal + Intensity */}
+          <div style={{ ...s.card, background: T.card2, marginBottom: 20 }}>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, color: T.accent, marginBottom: 14 }}>YOUR MISSION</div>
+            <label style={s.label}>Primary Goal</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+              {[["lose fat", "🔥 Lose Fat"], ["build muscle", "💪 Build Muscle"], ["improve performance", "⚡ Improve Performance"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setGForm(f => ({ ...f, goal: val }))}
+                  style={{ ...s.btn(gForm.goal === val ? T.accent : T.sub, gForm.goal !== val), justifyContent: "flex-start", fontSize: 14 }}>
+                  {gForm.goal === val ? "✓ " : ""}{lbl}
+                </button>
+              ))}
+            </div>
+            <label style={s.label}>Training Intensity Level</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[["beginner", "🟢", "New to boxing"], ["intermediate", "🟡", "6–12 months"], ["advanced", "🔴", "1+ year"]].map(([val, dot, sub]) => (
+                <button key={val} onClick={() => setGForm(f => ({ ...f, experience: val }))}
+                  style={{ ...s.btn(gForm.experience === val ? T.accent2 : T.sub, gForm.experience !== val), flex: 1, flexDirection: "column", alignItems: "center", padding: "10px 6px", gap: 4, fontSize: 12 }}>
+                  <span style={{ fontSize: 18 }}>{dot}</span>
+                  <span style={{ textTransform: "capitalize", fontWeight: 700 }}>{val}</span>
+                  <span style={{ fontSize: 10, color: gForm.experience === val ? "#fff" : T.sub, fontWeight: 400 }}>{sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={finishGoogleSetup}
+            disabled={!gForm.age || !gForm.height || !gForm.weight}
+            style={{ ...s.btn(T.green, false), width: "100%", justifyContent: "center", fontSize: 16, opacity: (!gForm.age || !gForm.height || !gForm.weight) ? 0.45 : 1 }}>
+            🥊 Enter Iron Fist
+          </button>
+          <div style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: T.sub }}>
+            All fields required for accurate calorie & intensity calculations
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
+  // ── PROFILE SCREEN ──────────────────────────────────────────────────────────
+  const ProfileScreen = () => {
+    const [editing, setEditing] = useState(false);
+    const [form, setForm] = useState({
+      name: user?.name || "",
+      email: user?.email || "",
+      gender: user?.gender || "male",
+      age: user?.age || "",
+      height: user?.height || "",
+      weight: user?.weight || "",
+      goal: user?.goal || "improve performance",
+      experience: user?.experience || "beginner",
+    });
+
+    const liveBmi = form.height && form.weight ? calcBMI(form.weight, form.height) : null;
+    const liveBmiCat = liveBmi ? getBMICategory(liveBmi) : null;
+    const tdee = calcTDEE(editing ? { ...user, ...form } : user);
+
+    const save = () => {
+      updateUser({ ...form });
+      setEditing(false);
+    };
+
+    const Field = ({ label, children }) => (
+      <div style={{ marginBottom: 14 }}>
+        <label style={s.label}>{label}</label>
+        {children}
+      </div>
+    );
+
+    const StatBox = ({ value, label, color }) => (
+      <div style={{ ...s.card, background: T.card2, textAlign: "center", padding: "14px 8px" }}>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 28, color: color || T.accent, lineHeight: 1 }}>{value ?? "—"}</div>
+        <div style={{ fontSize: 10, color: T.sub, letterSpacing: 2, marginTop: 3 }}>{label}</div>
+      </div>
+    );
+
+    return (
+      <div style={{ padding: 16 }}>
+        {/* Header */}
+        <div style={{ ...s.card, background: `linear-gradient(135deg, ${T.accent}22, ${T.card})`, border: `1px solid ${T.accent}44`, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: T.accent + "22", border: `2px solid ${T.accent}`, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+              {user?.googleAvatar
+                ? <img src={user.googleAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : <span style={{ fontSize: 28 }}>🥊</span>}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 28, letterSpacing: 2, color: T.text, lineHeight: 1 }}>{user?.name || "Fighter"}</div>
+              <div style={{ fontSize: 13, color: T.sub, marginTop: 2 }}>{user?.email}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                <span style={s.badge(T.accent)}>{user?.goal?.toUpperCase() || "PERFORMANCE"}</span>
+                <span style={s.badge(T.accent2)}>{user?.experience?.toUpperCase() || "BEGINNER"}</span>
+              </div>
+            </div>
+            <button onClick={() => setEditing(e => !e)} style={{ ...s.btn(editing ? T.sub : T.accent, editing), padding: "8px 14px", fontSize: 13 }}>
+              {editing ? "✕ Cancel" : "✏️ Edit"}
+            </button>
+          </div>
+
+          {/* Member since */}
+          {user?.joinDate && (
+            <div style={{ marginTop: 12, fontSize: 12, color: T.sub, letterSpacing: 1 }}>
+              Member since {new Date(user.joinDate).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+              {user?.googleSub ? " · Google Account" : " · Manual Registration"}
+            </div>
+          )}
+        </div>
+
+        {/* ── CALORIE & MACRO DASHBOARD ── */}
+        {tdee ? (
+          <div style={{ ...s.card, marginBottom: 16, background: `linear-gradient(135deg, ${T.accent2}15, ${T.card})`, border: `1px solid ${T.accent2}44` }}>
+            <div style={s.sectionTitle}>🔥 DAILY CALORIE TARGET</div>
+
+            {/* Main calorie ring display */}
+            <div style={{ display: "flex", align: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
+              <div style={{ position: "relative", width: 130, height: 130, flexShrink: 0 }}>
+                <svg width="130" height="130" viewBox="0 0 130 130" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="65" cy="65" r="55" fill="none" stroke={T.border} strokeWidth="10" />
+                  <circle cx="65" cy="65" r="55" fill="none" stroke={T.accent2} strokeWidth="10"
+                    strokeLinecap="round" strokeDasharray={2 * Math.PI * 55}
+                    strokeDashoffset={2 * Math.PI * 55 * (1 - Math.min(tdee.target / 4000, 1))} />
+                </svg>
+                <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 22, color: T.accent2, lineHeight: 1 }}>{tdee.target}</div>
+                  <div style={{ fontSize: 9, color: T.sub, letterSpacing: 1 }}>KCAL/DAY</div>
+                </div>
+              </div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: T.sub }}>Basal (BMR)</span>
+                  <span style={{ fontFamily: "'JetBrains Mono'", color: T.text }}>{tdee.bmr} kcal</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: T.sub }}>Maintenance (TDEE)</span>
+                  <span style={{ fontFamily: "'JetBrains Mono'", color: T.text }}>{tdee.tdee} kcal</span>
+                </div>
+                <div style={{ height: 1, background: T.border }} />
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 700 }}>
+                  <span style={{ color: T.accent2 }}>
+                    {user?.goal === "lose fat" ? "🔥 Fat Loss Target" : user?.goal === "build muscle" ? "💪 Muscle Gain Target" : "⚡ Performance Target"}
+                  </span>
+                  <span style={{ fontFamily: "'JetBrains Mono'", color: T.accent2 }}>{tdee.target} kcal</span>
+                </div>
+                <div style={{ fontSize: 11, color: T.sub }}>
+                  {user?.goal === "lose fat" ? "−18% deficit" : user?.goal === "build muscle" ? "+10% surplus" : "Maintenance"}
+                </div>
+              </div>
+            </div>
+
+            {/* Macro bars */}
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: T.sub, marginBottom: 10 }}>DAILY MACROS</div>
+            {[
+              { label: "Protein", val: tdee.protein, unit: "g", color: T.accent, max: 250, icon: "🥩" },
+              { label: "Carbs", val: tdee.carbs, unit: "g", color: T.accent2, max: 500, icon: "🍚" },
+              { label: "Fat", val: tdee.fat, unit: "g", color: T.green, max: 120, icon: "🥑" },
+            ].map(m => (
+              <div key={m.label} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 13 }}>{m.icon} {m.label}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color: m.color, fontWeight: 700 }}>{m.val}{m.unit}</span>
+                </div>
+                <div style={{ height: 7, background: T.border, borderRadius: 4 }}>
+                  <div style={{ width: `${Math.min((m.val / m.max) * 100, 100)}%`, height: "100%", background: m.color, borderRadius: 4, transition: "width 0.6s" }} />
+                </div>
+              </div>
+            ))}
+
+            <div style={{ fontSize: 11, color: T.sub, marginTop: 8, fontStyle: "italic" }}>
+              Calculated via Mifflin-St Jeor formula · {({ beginner: "Moderately active", intermediate: "Very active", advanced: "Extremely active" })[user?.experience]} · Updates when you edit profile
+            </div>
+          </div>
+        ) : (
+          <div style={{ ...s.card, background: T.accent + "0a", border: `1px dashed ${T.accent}44`, marginBottom: 16, textAlign: "center", padding: 20 }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>📊</div>
+            <div style={{ fontSize: 14, color: T.sub }}>Add your age, height & weight to unlock your personalised calorie & macro targets</div>
+            <button onClick={() => setEditing(true)} style={{ ...s.btn(T.accent, false), margin: "12px auto 0", justifyContent: "center" }}>✏️ Fill Profile</button>
+          </div>
+        )}
+
+        {/* ── BODY STATS ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+          <StatBox value={user?.bmi} label="BMI" color={user?.bmi ? getBMICategory(user.bmi).color : T.sub} />
+          <StatBox value={user?.weight ? `${user.weight}kg` : null} label="WEIGHT" color={T.accent2} />
+          <StatBox value={user?.height ? `${user.height}cm` : null} label="HEIGHT" color={T.accent3} />
+          <StatBox value={user?.age ? `${user.age}yr` : null} label="AGE" color={T.green} />
+        </div>
+
+        {/* ── EDIT FORM ── */}
+        {editing && (
+          <div style={{ ...s.card, border: `1px solid ${T.accent}66`, animation: "slideUp 0.3s ease" }}>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 3, color: T.accent, marginBottom: 20 }}>EDIT PROFILE</div>
+
+            {/* Personal */}
+            <div style={{ ...s.card, background: T.card2, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2, fontWeight: 700, marginBottom: 12 }}>PERSONAL INFO</div>
+              <Field label="Fighter Name">
+                <input style={s.input} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Your name" />
+              </Field>
+              <Field label="Email">
+                <input style={s.input} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@example.com" />
+              </Field>
+              <Field label="Gender">
+                <div style={{ display: "flex", gap: 8 }}>
+                  {["male", "female", "other"].map(g => (
+                    <button key={g} onClick={() => setForm(f => ({ ...f, gender: g }))}
+                      style={{ ...s.btn(form.gender === g ? T.accent : T.sub, form.gender !== g), flex: 1, justifyContent: "center", padding: "9px 4px", fontSize: 12 }}>
+                      {g === "male" ? "♂ Male" : g === "female" ? "♀ Female" : "⚧ Other"}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Age">
+                <input style={s.input} type="number" value={form.age} onChange={e => setForm(f => ({ ...f, age: e.target.value }))} placeholder="Age in years" />
+              </Field>
+            </div>
+
+            {/* Body */}
+            <div style={{ ...s.card, background: T.card2, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2, fontWeight: 700, marginBottom: 12 }}>BODY MEASUREMENTS</div>
+              <Field label="Height (cm)">
+                <input style={s.input} type="number" value={form.height} onChange={e => setForm(f => ({ ...f, height: e.target.value }))} placeholder="e.g. 175" />
+              </Field>
+              <Field label="Weight (kg)">
+                <input style={s.input} type="number" value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} placeholder="e.g. 75" />
+              </Field>
+              {liveBmi && liveBmiCat && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: liveBmiCat.color + "18", border: `1px solid ${liveBmiCat.color}44`, borderRadius: 10, padding: "10px 14px" }}>
+                  <div>
+                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 28, color: liveBmiCat.color, lineHeight: 1 }}>{liveBmi}</div>
+                    <div style={{ fontSize: 10, color: T.sub, letterSpacing: 2 }}>NEW BMI</div>
+                  </div>
+                  <div style={{ ...s.badge(liveBmiCat.color), fontSize: 13 }}>{liveBmiCat.label}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Goals + Intensity */}
+            <div style={{ ...s.card, background: T.card2, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2, fontWeight: 700, marginBottom: 12 }}>TRAINING CONFIGURATION</div>
+              <Field label="Primary Goal">
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[["lose fat", "🔥 Lose Fat"], ["build muscle", "💪 Build Muscle"], ["improve performance", "⚡ Improve Performance"]].map(([val, lbl]) => (
+                    <button key={val} onClick={() => setForm(f => ({ ...f, goal: val }))}
+                      style={{ ...s.btn(form.goal === val ? T.accent : T.sub, form.goal !== val), justifyContent: "flex-start", fontSize: 14 }}>
+                      {form.goal === val ? "✓ " : ""}{lbl}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Intensity Level">
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[["beginner", "🟢", "New"], ["intermediate", "🟡", "6–12mo"], ["advanced", "🔴", "1yr+"]].map(([val, dot, sub]) => (
+                    <button key={val} onClick={() => setForm(f => ({ ...f, experience: val }))}
+                      style={{ ...s.btn(form.experience === val ? T.accent2 : T.sub, form.experience !== val), flex: 1, flexDirection: "column", alignItems: "center", padding: "10px 6px", gap: 3, fontSize: 11 }}>
+                      <span style={{ fontSize: 16 }}>{dot}</span>
+                      <span style={{ textTransform: "capitalize", fontWeight: 700, fontSize: 12 }}>{val}</span>
+                      <span style={{ fontSize: 10, color: form.experience === val ? "#ffffffaa" : T.sub }}>{sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              {/* Live calorie preview while editing */}
+              {form.age && form.height && form.weight && (() => {
+                const preview = calcTDEE({ ...user, ...form });
+                return preview ? (
+                  <div style={{ background: T.accent2 + "12", border: `1px solid ${T.accent2}33`, borderRadius: 10, padding: "12px 14px", marginTop: 8 }}>
+                    <div style={{ fontSize: 11, color: T.accent2, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>📊 LIVE PREVIEW — CALORIE TARGET</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, textAlign: "center" }}>
+                      {[["Protein", preview.protein + "g", T.accent], ["Carbs", preview.carbs + "g", T.accent2], ["Fat", preview.fat + "g", T.green]].map(([l, v, c]) => (
+                        <div key={l}>
+                          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 18, color: c }}>{v}</div>
+                          <div style={{ fontSize: 10, color: T.sub, letterSpacing: 1 }}>{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ textAlign: "center", marginTop: 10, fontFamily: "'JetBrains Mono'", fontSize: 20, color: T.accent2 }}>
+                      {preview.target} <span style={{ fontSize: 12, color: T.sub }}>kcal / day</span>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setEditing(false)} style={{ ...s.btn(T.sub, true), flex: 1, justifyContent: "center" }}>✕ Cancel</button>
+              <button onClick={save} style={{ ...s.btn(T.green, false), flex: 2, justifyContent: "center", fontSize: 15 }}>✓ Save Profile</button>
+            </div>
+          </div>
+        )}
+
+        {/* Danger zone */}
+        <div style={{ ...s.card, border: `1px solid ${T.accent}33`, marginTop: 16, background: T.accent + "06" }}>
+          <div style={{ fontSize: 12, color: T.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>ACCOUNT</div>
+          <button onClick={logoutUser} style={{ ...s.btn(T.accent, true), width: "100%", justifyContent: "center", fontSize: 14 }}>
+            👋 Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   if (screen === "register") return (
@@ -2004,7 +3394,9 @@ export default function BoxingApp() {
   if (screen === "active") return (
     <>
       <style>{css}</style>
-      <div style={s.app}><ActiveTimer /></div>
+      <div style={s.app}>
+        {breathScreen ? <BreathingScreen /> : <ActiveTimer />}
+      </div>
     </>
   );
 
@@ -2015,12 +3407,16 @@ export default function BoxingApp() {
     { label: "🤜 Knuckle", key: "knuckle" },
     { label: "🎯 Goals", key: "goals" },
     { label: "📊 Progress", key: "progress" },
+    { label: "👤 Profile", key: "profile" },
   ];
 
   return (
     <>
       <style>{css}</style>
       <div style={s.app}>
+        {/* Google completion modal — shown over everything when googlePending is set */}
+        {googlePending && <GoogleCompletionModal />}
+
         {/* Header */}
         <div style={s.header}>
           <div>
@@ -2032,10 +3428,10 @@ export default function BoxingApp() {
               {dark ? "☀️" : "🌙"}
             </button>
             {user && (
-              <button onClick={logoutUser} title="Sign out" style={{ ...s.toggle, fontSize: 14, padding: "6px 12px", color: T.sub }}>
+              <button onClick={() => setScreen("profile")} title="Profile" style={{ ...s.toggle, padding: "4px", border: screen === "profile" ? `2px solid ${T.accent}` : "2px solid transparent", borderRadius: "50%" }}>
                 {user.googleAvatar
-                  ? <img src={user.googleAvatar} alt="avatar" style={{ width: 22, height: 22, borderRadius: "50%", verticalAlign: "middle" }} />
-                  : "👤"} Sign out
+                  ? <img src={user.googleAvatar} alt="avatar" style={{ width: 28, height: 28, borderRadius: "50%", display: "block" }} />
+                  : <span style={{ fontSize: 22 }}>👤</span>}
               </button>
             )}
           </div>
@@ -2056,6 +3452,7 @@ export default function BoxingApp() {
           {screen === "knuckle" && <KnuckleScreen />}
           {screen === "goals" && <GoalsScreen />}
           {screen === "progress" && <ProgressScreen />}
+          {screen === "profile" && <ProfileScreen />}
         </div>
       </div>
     </>
