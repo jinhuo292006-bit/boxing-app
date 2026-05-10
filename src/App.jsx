@@ -2373,10 +2373,12 @@ export default function BoxingApp() {
     };
 
     useEffect(() => {
-      if (activeHorse?.running && activeHorse.timer > 0) {
+      if (activeHorse?.running) {
         horseRef.current = setInterval(() => {
           setActiveHorse(a => a ? { ...a, timer: a.timer + 1 } : null);
         }, 1000);
+      } else {
+        clearInterval(horseRef.current);
       }
       return () => clearInterval(horseRef.current);
     }, [activeHorse?.running]);
