@@ -978,7 +978,7 @@ export default function BoxingApp() {
     const phaseProgress = 1 - phaseTick / boxDur;
     const circleScale = phase === "inhale" ? 1 + phaseProgress * 0.25
       : phase === "exhale" ? 1.25 - phaseProgress * 0.25
-      : 1.25;
+        : 1.25;
 
     useEffect(() => {
       if (!started) return;
@@ -1674,7 +1674,7 @@ export default function BoxingApp() {
           {[
             { label: "Recovery", icon: "🧘", screen: "recovery", color: T.green },
             { label: "Diet Plan", icon: "🥗", screen: "diet", color: T.accent2 },
-            { label: "Horse Stance", icon: "🐴", screen: "knuckle", color: T.accent3 },
+            { label: "My Goals", icon: "✨", screen: "knuckle", color: T.purple },
             { label: "Goals & PRs", icon: "🎯", screen: "goals", color: T.purple },
           ].map(q => (
             <button key={q.screen} onClick={() => setScreen(q.screen)} style={{ ...s.card, border: `1px solid ${q.color}44`, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: 16, background: q.color + "11" }}>
@@ -2282,75 +2282,83 @@ export default function BoxingApp() {
     );
   };
 
-  // ── TRAINING TOOLS SCREEN (Budget List + Horse Stance Pipeline) ─────────────
+  // ── TRAINING TOOLS SCREEN (Personal Goals + Horse Stance Pipeline) ──────────
   const TrainingToolsScreen = () => {
-    // ── BUDGET LIST STATE ──
-    const [budgetItems, setBudgetItems] = useState(() => {
-      try { return JSON.parse(localStorage.getItem("ironfist_budget") || "[]"); } catch { return []; }
+    // ── PERSONAL GOALS STATE ──
+    const [goals, setGoals] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_personalgoals") || "[]"); } catch { return []; }
     });
-    const [budgetForm, setBudgetForm] = useState({ name: "", cost: "", priority: "medium", notes: "" });
-    const [showBudgetAdd, setShowBudgetAdd] = useState(false);
-    const [editBudgetIdx, setEditBudgetIdx] = useState(null);
+    const [goalForm, setGoalForm] = useState({ name: "", category: "life", deadline: "", notes: "" });
+    const [showGoalAdd, setShowGoalAdd] = useState(false);
+    const [editGoalIdx, setEditGoalIdx] = useState(null);
+    const [filterCat, setFilterCat] = useState("all");
 
-    const saveBudget = (items) => {
-      setBudgetItems(items);
-      try { localStorage.setItem("ironfist_budget", JSON.stringify(items)); } catch { }
+    const saveGoals = (items) => {
+      setGoals(items);
+      try { localStorage.setItem("ironfist_personalgoals", JSON.stringify(items)); } catch { }
     };
 
-    const addBudgetItem = () => {
-      if (!budgetForm.name.trim()) return;
+    const categoryConfig = {
+      life: { color: "#8e44ad", icon: "✨", label: "Life" },
+      learn: { color: "#2980b9", icon: "📚", label: "Learn" },
+      health: { color: "#27ae60", icon: "🌿", label: "Health" },
+      money: { color: "#f39c12", icon: "💰", label: "Money" },
+      social: { color: "#e74c3c", icon: "🤝", label: "Social" },
+      mindset: { color: "#16a085", icon: "🧠", label: "Mindset" },
+      other: { color: "#7f8c8d", icon: "🎯", label: "Other" },
+    };
+
+    const addGoal = () => {
+      if (!goalForm.name.trim()) return;
       const item = {
         id: Date.now(),
-        name: budgetForm.name.trim(),
-        cost: parseFloat(budgetForm.cost) || 0,
-        priority: budgetForm.priority,
-        notes: budgetForm.notes.trim(),
-        achieved: false,
+        name: goalForm.name.trim(),
+        category: goalForm.category,
+        deadline: goalForm.deadline,
+        notes: goalForm.notes.trim(),
+        done: false,
         addedDate: new Date().toLocaleDateString("en-GB"),
+        doneDate: null,
       };
-      if (editBudgetIdx !== null) {
-        const updated = budgetItems.map((b, i) => i === editBudgetIdx ? { ...b, ...item, id: b.id, achieved: b.achieved, addedDate: b.addedDate } : b);
-        saveBudget(updated);
-        setEditBudgetIdx(null);
+      if (editGoalIdx !== null) {
+        const updated = goals.map((g, i) => i === editGoalIdx ? { ...g, ...item, id: g.id, done: g.done, addedDate: g.addedDate, doneDate: g.doneDate } : g);
+        saveGoals(updated);
+        setEditGoalIdx(null);
       } else {
-        saveBudget([...budgetItems, item]);
+        saveGoals([...goals, item]);
       }
-      setBudgetForm({ name: "", cost: "", priority: "medium", notes: "" });
-      setShowBudgetAdd(false);
+      setGoalForm({ name: "", category: "life", deadline: "", notes: "" });
+      setShowGoalAdd(false);
     };
 
-    const toggleAchieved = (idx) => {
-      const updated = budgetItems.map((b, i) => i === idx ? { ...b, achieved: !b.achieved } : b);
-      saveBudget(updated);
+    const toggleDone = (idx) => {
+      const updated = goals.map((g, i) => i === idx ? { ...g, done: !g.done, doneDate: !g.done ? new Date().toLocaleDateString("en-GB") : null } : g);
+      saveGoals(updated);
     };
 
-    const deleteBudgetItem = (idx) => {
-      saveBudget(budgetItems.filter((_, i) => i !== idx));
+    const deleteGoal = (idx) => saveGoals(goals.filter((_, i) => i !== idx));
+
+    const startEditGoal = (idx) => {
+      const g = goals[idx];
+      setGoalForm({ name: g.name, category: g.category, deadline: g.deadline || "", notes: g.notes });
+      setEditGoalIdx(idx);
+      setShowGoalAdd(true);
     };
 
-    const startEdit = (idx) => {
-      const b = budgetItems[idx];
-      setBudgetForm({ name: b.name, cost: b.cost, priority: b.priority, notes: b.notes });
-      setEditBudgetIdx(idx);
-      setShowBudgetAdd(true);
-    };
+    const cats = ["all", ...Object.keys(categoryConfig)];
+    const doneCount = goals.filter(g => g.done).length;
+    const donePct = goals.length > 0 ? Math.round((doneCount / goals.length) * 100) : 0;
 
-    const priorityConfig = {
-      high: { color: T.accent, label: "🔴 High" },
-      medium: { color: T.accent2, label: "🟡 Medium" },
-      low: { color: T.green, label: "🟢 Low" },
-    };
-
-    const totalCost = budgetItems.reduce((s, b) => s + (b.cost || 0), 0);
-    const achievedCost = budgetItems.filter(b => b.achieved).reduce((s, b) => s + (b.cost || 0), 0);
-    const achievedPct = totalCost > 0 ? Math.round((achievedCost / totalCost) * 100) : 0;
-
-    // Sort: by achieved (not achieved first), then by priority
-    const priorityOrder = { high: 0, medium: 1, low: 2 };
-    const sorted = [...budgetItems].map((b, i) => ({ ...b, _idx: i })).sort((a, b) => {
-      if (a.achieved !== b.achieved) return a.achieved ? 1 : -1;
-      return (priorityOrder[a.priority] || 1) - (priorityOrder[b.priority] || 1);
-    });
+    const visibleGoals = goals
+      .map((g, i) => ({ ...g, _idx: i }))
+      .filter(g => filterCat === "all" || g.category === filterCat)
+      .sort((a, b) => {
+        if (a.done !== b.done) return a.done ? 1 : -1;
+        if (a.deadline && b.deadline) return new Date(a.deadline) - new Date(b.deadline);
+        if (a.deadline) return -1;
+        if (b.deadline) return 1;
+        return b.id - a.id;
+      });
 
     // ── HORSE STANCE STATE ──
     const [horseLog, setHorseLog] = useState(() => {
@@ -2410,110 +2418,142 @@ export default function BoxingApp() {
     return (
       <div style={{ padding: 16 }}>
 
-        {/* ── SECTION: BUDGET LIST ── */}
-        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 38, letterSpacing: 4, color: T.accent2, marginBottom: 4 }}>GEAR</div>
-        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 3, color: T.sub, marginBottom: 16 }}>BUDGET PIPELINE</div>
+        {/* ── SECTION: PERSONAL GOALS ── */}
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 38, letterSpacing: 4, color: T.purple, marginBottom: 2 }}>PERSONAL</div>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 3, color: T.sub, marginBottom: 16 }}>GOALS</div>
 
-        <div style={{ ...s.card, background: T.accent2 + "0d", border: `1px solid ${T.accent2}33`, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.7 }}>
-            Track the boxing gear and equipment you want to buy. Mark items as achieved as you get them. Prioritise what makes the biggest difference to your training first.
-          </div>
-        </div>
-
-        {/* Budget summary bar */}
-        {budgetItems.length > 0 && (
+        {/* Summary bar */}
+        {goals.length > 0 && (
           <div style={{ ...s.card, marginBottom: 16, padding: "14px 18px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2 }}>BUDGET PROGRESS</div>
-              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color: T.accent2 }}>
-                ₹{achievedCost.toLocaleString()} / ₹{totalCost.toLocaleString()}
-              </div>
+              <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2 }}>OVERALL PROGRESS</div>
+              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color: T.purple }}>{doneCount} / {goals.length} done</div>
             </div>
-            <div style={{ height: 8, background: T.border, borderRadius: 4, marginBottom: 8 }}>
-              <div style={{ width: `${achievedPct}%`, height: "100%", background: `linear-gradient(90deg, ${T.accent2}, ${T.green})`, borderRadius: 4, transition: "width 0.6s" }} />
+            <div style={{ height: 8, background: T.border, borderRadius: 4, marginBottom: 6 }}>
+              <div style={{ width: `${donePct}%`, height: "100%", background: `linear-gradient(90deg, ${T.purple}, ${T.green})`, borderRadius: 4, transition: "width 0.6s" }} />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.sub }}>
-              <span>{budgetItems.filter(b => b.achieved).length} of {budgetItems.length} items achieved</span>
-              <span style={{ color: T.accent2 }}>{achievedPct}% complete</span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {Object.entries(categoryConfig).map(([key, cfg]) => {
+                const count = goals.filter(g => g.category === key).length;
+                if (!count) return null;
+                return <span key={key} style={{ ...s.badge(cfg.color), fontSize: 10 }}>{cfg.icon} {cfg.label} {count}</span>;
+              })}
             </div>
           </div>
         )}
 
+        {/* Category filter */}
+        {goals.length > 0 && (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 14, paddingBottom: 4 }}>
+            {cats.map(c => {
+              const cfg = categoryConfig[c];
+              const active = filterCat === c;
+              return (
+                <button key={c} onClick={() => setFilterCat(c)}
+                  style={{ ...s.btn(cfg ? cfg.color : T.accent3, !active), padding: "5px 12px", fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {cfg ? `${cfg.icon} ${cfg.label}` : "🌐 All"}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Add / edit form */}
-        {showBudgetAdd && (
-          <div style={{ ...s.card, marginBottom: 16, border: `1px solid ${T.accent2}44`, animation: "slideUp 0.3s ease" }}>
-            <div style={{ fontSize: 14, color: T.accent2, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
-              {editBudgetIdx !== null ? "✏️ EDIT ITEM" : "➕ ADD ITEM"}
+        {showGoalAdd && (
+          <div style={{ ...s.card, marginBottom: 16, border: `1px solid ${T.purple}44`, animation: "slideUp 0.3s ease" }}>
+            <div style={{ fontSize: 14, color: T.purple, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+              {editGoalIdx !== null ? "✏️ EDIT GOAL" : "➕ NEW GOAL"}
             </div>
-            <label style={s.label}>Item Name *</label>
-            <input style={s.input} placeholder="e.g. Boxing Gloves 14oz" value={budgetForm.name}
-              onChange={e => setBudgetForm(f => ({ ...f, name: e.target.value }))} />
-            <label style={s.label}>Estimated Cost (₹)</label>
-            <input style={s.input} type="number" placeholder="e.g. 2500" value={budgetForm.cost}
-              onChange={e => setBudgetForm(f => ({ ...f, cost: e.target.value }))} />
-            <label style={s.label}>Priority</label>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              {["high", "medium", "low"].map(p => (
-                <button key={p} onClick={() => setBudgetForm(f => ({ ...f, priority: p }))}
-                  style={{ ...s.btn(budgetForm.priority === p ? priorityConfig[p].color : T.sub, budgetForm.priority !== p), flex: 1, justifyContent: "center", padding: "8px 4px", fontSize: 12 }}>
-                  {priorityConfig[p].label}
+            <label style={s.label}>What's your goal? *</label>
+            <input style={s.input} placeholder="e.g. Read 12 books this year" value={goalForm.name}
+              onChange={e => setGoalForm(f => ({ ...f, name: e.target.value }))} />
+
+            <label style={s.label}>Category</label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+              {Object.entries(categoryConfig).map(([key, cfg]) => (
+                <button key={key} onClick={() => setGoalForm(f => ({ ...f, category: key }))}
+                  style={{ ...s.btn(goalForm.category === key ? cfg.color : T.sub, goalForm.category !== key), padding: "6px 12px", fontSize: 12, flexShrink: 0 }}>
+                  {cfg.icon} {cfg.label}
                 </button>
               ))}
             </div>
-            <label style={s.label}>Notes (optional)</label>
-            <input style={s.input} placeholder="e.g. Need for sparring, check Decathlon" value={budgetForm.notes}
-              onChange={e => setBudgetForm(f => ({ ...f, notes: e.target.value }))} />
+
+            <label style={s.label}>Target Date (optional)</label>
+            <input style={s.input} type="date" value={goalForm.deadline}
+              onChange={e => setGoalForm(f => ({ ...f, deadline: e.target.value }))} />
+
+            <label style={s.label}>Notes / Why this matters (optional)</label>
+            <input style={s.input} placeholder="e.g. Been putting this off for 2 years — just do it" value={goalForm.notes}
+              onChange={e => setGoalForm(f => ({ ...f, notes: e.target.value }))} />
+
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <button onClick={() => { setShowBudgetAdd(false); setEditBudgetIdx(null); setBudgetForm({ name: "", cost: "", priority: "medium", notes: "" }); }}
+              <button onClick={() => { setShowGoalAdd(false); setEditGoalIdx(null); setGoalForm({ name: "", category: "life", deadline: "", notes: "" }); }}
                 style={{ ...s.btn(T.sub, true), flex: 1, justifyContent: "center" }}>✕ Cancel</button>
-              <button onClick={addBudgetItem} disabled={!budgetForm.name.trim()}
-                style={{ ...s.btn(T.accent2, false), flex: 2, justifyContent: "center", opacity: !budgetForm.name.trim() ? 0.5 : 1 }}>
-                {editBudgetIdx !== null ? "✓ Update" : "✓ Add to List"}
+              <button onClick={addGoal} disabled={!goalForm.name.trim()}
+                style={{ ...s.btn(T.purple, false), flex: 2, justifyContent: "center", opacity: !goalForm.name.trim() ? 0.5 : 1 }}>
+                {editGoalIdx !== null ? "✓ Update" : "✓ Add Goal"}
               </button>
             </div>
           </div>
         )}
 
-        {!showBudgetAdd && (
-          <button onClick={() => setShowBudgetAdd(true)}
-            style={{ ...s.btn(T.accent2, true), width: "100%", justifyContent: "center", marginBottom: 16, fontSize: 14 }}>
-            ＋ Add Gear / Equipment
+        {!showGoalAdd && (
+          <button onClick={() => setShowGoalAdd(true)}
+            style={{ ...s.btn(T.purple, true), width: "100%", justifyContent: "center", marginBottom: 16, fontSize: 14 }}>
+            ＋ Add Personal Goal
           </button>
         )}
 
-        {/* Budget items list */}
-        {budgetItems.length === 0 ? (
+        {/* Goals list */}
+        {goals.length === 0 ? (
           <div style={{ ...s.card, textAlign: "center", padding: "32px 16px", color: T.sub, marginBottom: 24 }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>🎯</div>
-            <div style={{ fontSize: 14 }}>No items yet. Add boxing gear, equipment, or training tools you want to buy — and track your progress toward getting them.</div>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🌱</div>
+            <div style={{ fontSize: 14, lineHeight: 1.7 }}>
+              Add personal goals that have nothing to do with fitness — things you want to learn, do, experience, or become. Track them alongside your training.
+            </div>
           </div>
         ) : (
           <div style={{ marginBottom: 24 }}>
-            {sorted.map((item) => {
-              const pc = priorityConfig[item.priority] || priorityConfig.medium;
+            {visibleGoals.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "20px", color: T.sub, fontSize: 13 }}>No goals in this category yet.</div>
+            ) : visibleGoals.map((goal) => {
+              const cfg = categoryConfig[goal.category] || categoryConfig.other;
+              const hasDeadline = !!goal.deadline;
+              const deadlineDate = hasDeadline ? new Date(goal.deadline) : null;
+              const today = new Date(); today.setHours(0, 0, 0, 0);
+              const daysLeft = deadlineDate ? Math.ceil((deadlineDate - today) / 86400000) : null;
+              const overdue = daysLeft !== null && daysLeft < 0 && !goal.done;
+              const soon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7 && !goal.done;
+
               return (
-                <div key={item.id} style={{ ...s.card, marginBottom: 10, border: `1px solid ${item.achieved ? T.green : pc.color}33`, background: item.achieved ? T.green + "07" : T.card, opacity: item.achieved ? 0.75 : 1, transition: "all 0.3s" }}>
+                <div key={goal.id} style={{ ...s.card, marginBottom: 10, border: `1px solid ${goal.done ? T.green : overdue ? T.accent : cfg.color}33`, background: goal.done ? T.green + "07" : overdue ? T.accent + "07" : T.card, transition: "all 0.3s" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                     {/* Checkbox */}
-                    <button onClick={() => toggleAchieved(item._idx)}
-                      style={{ width: 28, height: 28, borderRadius: 6, border: `2px solid ${item.achieved ? T.green : pc.color}`, background: item.achieved ? T.green : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2, transition: "all 0.2s" }}>
-                      {item.achieved && <span style={{ color: "#fff", fontSize: 14 }}>✓</span>}
+                    <button onClick={() => toggleDone(goal._idx)}
+                      style={{ width: 28, height: 28, borderRadius: 6, border: `2px solid ${goal.done ? T.green : cfg.color}`, background: goal.done ? T.green : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2, fontSize: 14, transition: "all 0.2s" }}>
+                      {goal.done ? <span style={{ color: "#fff" }}>✓</span> : <span style={{ color: cfg.color }}>{cfg.icon}</span>}
                     </button>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: item.achieved ? T.sub : T.text, textDecoration: item.achieved ? "line-through" : "none" }}>{item.name}</div>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                          {item.cost > 0 && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color: item.achieved ? T.green : T.accent2 }}>₹{item.cost.toLocaleString()}</span>}
-                          <span style={{ ...s.badge(pc.color), fontSize: 10 }}>{pc.label}</span>
-                        </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: goal.done ? T.sub : T.text, textDecoration: goal.done ? "line-through" : "none", marginBottom: 3 }}>
+                        {goal.name}
                       </div>
-                      {item.notes ? <div style={{ fontSize: 12, color: T.sub, marginTop: 3 }}>{item.notes}</div> : null}
-                      {item.achieved && <div style={{ fontSize: 11, color: T.green, marginTop: 3 }}>✓ Achieved · {item.addedDate}</div>}
+
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: goal.notes ? 4 : 0 }}>
+                        <span style={{ ...s.badge(cfg.color), fontSize: 10 }}>{cfg.icon} {cfg.label}</span>
+                        {goal.done && <span style={{ ...s.badge(T.green), fontSize: 10 }}>✓ Done · {goal.doneDate}</span>}
+                        {overdue && <span style={{ ...s.badge(T.accent), fontSize: 10 }}>⚠️ Overdue {Math.abs(daysLeft)}d</span>}
+                        {soon && <span style={{ ...s.badge(T.accent2), fontSize: 10 }}>⏰ {daysLeft === 0 ? "Today!" : `${daysLeft}d left`}</span>}
+                        {hasDeadline && !goal.done && !overdue && !soon && <span style={{ ...s.badge(T.sub), fontSize: 10 }}>📅 {deadlineDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
+                      </div>
+
+                      {goal.notes ? <div style={{ fontSize: 12, color: T.sub, marginTop: 2, lineHeight: 1.5 }}>{goal.notes}</div> : null}
                     </div>
-                    {/* Actions */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <button onClick={() => startEdit(item._idx)} style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px", color: T.sub, cursor: "pointer", fontSize: 11 }}>✏️</button>
-                      <button onClick={() => deleteBudgetItem(item._idx)} style={{ background: "transparent", border: `1px solid ${T.accent}33`, borderRadius: 6, padding: "3px 8px", color: T.accent, cursor: "pointer", fontSize: 11 }}>✕</button>
+
+                    {/* Edit / delete */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+                      <button onClick={() => startEditGoal(goal._idx)} style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px", color: T.sub, cursor: "pointer", fontSize: 11 }}>✏️</button>
+                      <button onClick={() => deleteGoal(goal._idx)} style={{ background: "transparent", border: `1px solid ${T.accent}33`, borderRadius: 6, padding: "3px 8px", color: T.accent, cursor: "pointer", fontSize: 11 }}>✕</button>
                     </div>
                   </div>
                 </div>
