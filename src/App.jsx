@@ -309,11 +309,42 @@ const WORKOUT_DATA = {
   },
 };
 
-const KNUCKLE_CONDITIONING = [
-  { week: "1-2", drill: "Rice Bucket Plunge", duration: 120, desc: "Plunge fists into uncooked rice, open/close hands. Builds tendon strength." },
-  { week: "3-4", drill: "Towel Push-ups", duration: 60, reps: 10, desc: "Push-ups on knuckles on a soft towel. Aligns knuckles, builds bone density." },
-  { week: "5-6", drill: "Hardwood Knuckle Push-ups", duration: 60, reps: 15, desc: "Knuckle push-ups on hardwood floor. Increases bone density." },
-  { week: "7-8", drill: "Light Bag Work", duration: 120, desc: "Controlled hits on a heavy bag with hand wraps. Full knuckle conditioning." },
+const HORSE_STANCE_LEVELS = [
+  {
+    level: 1, name: "Foundation Stance", chineseName: "Mǎ Bù — 馬步", duration: 30,
+    targetWeeks: "1–2", icon: "🟢",
+    cue: "Feet 2× shoulder-width. Toes forward or very slight outward. Squat until thighs are at 45°. Hands on hips or in fists at waist. Spine neutral, chest up. This is where you build awareness.",
+    standard: "Hold 30 seconds without rising or tipping. Breathing must stay steady throughout.",
+    mistakes: ["Knees caving inward", "Heels lifting off floor", "Leaning forward with torso"],
+  },
+  {
+    level: 2, name: "Parallel Thigh Hold", chineseName: "Mǎ Bù — 馬步", duration: 60,
+    targetWeeks: "3–4", icon: "🟡",
+    cue: "Same wide stance. Now lower until thighs are parallel to the ground. Fists at waist (chambered), elbows back. This is real Horse Stance — the foundation of all Shaolin power.",
+    standard: "Hold 60 seconds, thighs fully parallel, no movement, no shaking.",
+    mistakes: ["Butt sticking out (butt wink)", "Shoulders rounding forward", "Breathing too fast — slow nasal breath only"],
+  },
+  {
+    level: 3, name: "Iron Stance Endurance", chineseName: "Tiě Mǎ Bù — 鐵馬步", duration: 120,
+    targetWeeks: "5–7", icon: "🟠",
+    cue: "Same as Level 2 but held for 2 minutes. Arms can extend forward (shoulder height, fists closed) for added difficulty. Every second past failure is where real strength builds. Breathe through your nose, exhale slowly.",
+    standard: "2 continuous minutes, thighs parallel, arms extended or at waist.",
+    mistakes: ["Raising even slightly when it hurts — resist this urge", "Looking down — eyes forward", "Jaw clenching — relax the face, tension goes to the legs"],
+  },
+  {
+    level: 4, name: "Shaolin Warrior Hold", chineseName: "Shàolín Mǎ Bù — 少林馬步", duration: 300,
+    targetWeeks: "8–12", icon: "🔴",
+    cue: "5-minute hold. Stance width increases slightly. Arms extended forward at shoulder height for full duration. Shaolin monks consider this the minimum test of lower body iron strength. Your legs will burn — that is the point. Do not move.",
+    standard: "5 minutes, parallel thighs, arms forward at shoulder height, motionless.",
+    mistakes: ["Stopping at the first burn — this is where beginners quit and warriors stay", "Adjusting foot position mid-hold", "Breathing with mouth"],
+  },
+  {
+    level: 5, name: "Shaolin Entry Standard", chineseName: "Rù Mén Biāozhǔn — 入門標準", duration: 600,
+    targetWeeks: "12–20+", icon: "⚫",
+    cue: "10-minute continuous hold. Thighs parallel, arms extended, eyes fixed forward, nasal breathing only. This is the Shaolin temple entry-level standard — the minimum a prospective monk must demonstrate. Very few people in the world can hold this. Train daily to reach it.",
+    standard: "10 full minutes, zero movement, thighs parallel, full upper body stillness. This is the gate.",
+    mistakes: ["Skipping levels — you must earn each one", "Training with pain (joint pain ≠ muscle burn)", "Attempting this without months of consistent lower-level training"],
+  },
 ];
 
 const NECK_WORKOUT = [
@@ -947,7 +978,7 @@ export default function BoxingApp() {
     const phaseProgress = 1 - phaseTick / boxDur;
     const circleScale = phase === "inhale" ? 1 + phaseProgress * 0.25
       : phase === "exhale" ? 1.25 - phaseProgress * 0.25
-        : 1.25;
+      : 1.25;
 
     useEffect(() => {
       if (!started) return;
@@ -1492,8 +1523,6 @@ export default function BoxingApp() {
     const morningSections = dayData.sections?.filter(s => MORNING_SECTIONS.has(s.name)) || [];
     const eveningSections = dayData.sections?.filter(s => !MORNING_SECTIONS.has(s.name)) || [];
 
-    // Knuckle conditioning for today — week-based unlock
-    const knuckleForToday = KNUCKLE_CONDITIONING.filter((_, i) => i < Math.ceil(weekNumber / 2));
 
     return (
       <div style={{ padding: 16 }}>
@@ -1637,24 +1666,6 @@ export default function BoxingApp() {
             )}
 
             {/* Knuckle Conditioning in Daily Plan */}
-            {knuckleForToday.length > 0 && (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <div style={{ fontSize: 18 }}>🤜</div>
-                  <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: T.accent }}>KNUCKLE CONDITIONING</div>
-                </div>
-                {knuckleForToday.map((k, i) => (
-                  <div key={i} style={s.exRow(false)}>
-                    <span style={{ fontSize: 20 }}>🤜</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{k.drill}</div>
-                      <div style={{ fontSize: 12, color: T.sub }}>3 sets × {k.duration ? fmt(k.duration) : `${k.reps} reps`}</div>
-                    </div>
-                    <div style={{ ...s.badge(T.accent), fontSize: 10 }}>Wk {k.week}</div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -1663,7 +1674,7 @@ export default function BoxingApp() {
           {[
             { label: "Recovery", icon: "🧘", screen: "recovery", color: T.green },
             { label: "Diet Plan", icon: "🥗", screen: "diet", color: T.accent2 },
-            { label: "Knuckle Work", icon: "🤜", screen: "knuckle", color: T.accent },
+            { label: "Horse Stance", icon: "🐴", screen: "knuckle", color: T.accent3 },
             { label: "Goals & PRs", icon: "🎯", screen: "goals", color: T.purple },
           ].map(q => (
             <button key={q.screen} onClick={() => setScreen(q.screen)} style={{ ...s.card, border: `1px solid ${q.color}44`, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: 16, background: q.color + "11" }}>
@@ -2271,126 +2282,404 @@ export default function BoxingApp() {
     );
   };
 
-  // ── KNUCKLE SCREEN ───────────────────────────────────────────────────────────
-  const KnuckleScreen = () => {
-    const [activeEx, setActiveEx] = useState(null);
-    const [knuckleSets, setKnuckleSets] = useState({});
-    const [neckSets, setNeckSets] = useState({});
-    const knuckleTimerRef = useRef(null);
+  // ── TRAINING TOOLS SCREEN (Budget List + Horse Stance Pipeline) ─────────────
+  const TrainingToolsScreen = () => {
+    // ── BUDGET LIST STATE ──
+    const [budgetItems, setBudgetItems] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_budget") || "[]"); } catch { return []; }
+    });
+    const [budgetForm, setBudgetForm] = useState({ name: "", cost: "", priority: "medium", notes: "" });
+    const [showBudgetAdd, setShowBudgetAdd] = useState(false);
+    const [editBudgetIdx, setEditBudgetIdx] = useState(null);
+
+    const saveBudget = (items) => {
+      setBudgetItems(items);
+      try { localStorage.setItem("ironfist_budget", JSON.stringify(items)); } catch { }
+    };
+
+    const addBudgetItem = () => {
+      if (!budgetForm.name.trim()) return;
+      const item = {
+        id: Date.now(),
+        name: budgetForm.name.trim(),
+        cost: parseFloat(budgetForm.cost) || 0,
+        priority: budgetForm.priority,
+        notes: budgetForm.notes.trim(),
+        achieved: false,
+        addedDate: new Date().toLocaleDateString("en-GB"),
+      };
+      if (editBudgetIdx !== null) {
+        const updated = budgetItems.map((b, i) => i === editBudgetIdx ? { ...b, ...item, id: b.id, achieved: b.achieved, addedDate: b.addedDate } : b);
+        saveBudget(updated);
+        setEditBudgetIdx(null);
+      } else {
+        saveBudget([...budgetItems, item]);
+      }
+      setBudgetForm({ name: "", cost: "", priority: "medium", notes: "" });
+      setShowBudgetAdd(false);
+    };
+
+    const toggleAchieved = (idx) => {
+      const updated = budgetItems.map((b, i) => i === idx ? { ...b, achieved: !b.achieved } : b);
+      saveBudget(updated);
+    };
+
+    const deleteBudgetItem = (idx) => {
+      saveBudget(budgetItems.filter((_, i) => i !== idx));
+    };
+
+    const startEdit = (idx) => {
+      const b = budgetItems[idx];
+      setBudgetForm({ name: b.name, cost: b.cost, priority: b.priority, notes: b.notes });
+      setEditBudgetIdx(idx);
+      setShowBudgetAdd(true);
+    };
+
+    const priorityConfig = {
+      high: { color: T.accent, label: "🔴 High" },
+      medium: { color: T.accent2, label: "🟡 Medium" },
+      low: { color: T.green, label: "🟢 Low" },
+    };
+
+    const totalCost = budgetItems.reduce((s, b) => s + (b.cost || 0), 0);
+    const achievedCost = budgetItems.filter(b => b.achieved).reduce((s, b) => s + (b.cost || 0), 0);
+    const achievedPct = totalCost > 0 ? Math.round((achievedCost / totalCost) * 100) : 0;
+
+    // Sort: by achieved (not achieved first), then by priority
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    const sorted = [...budgetItems].map((b, i) => ({ ...b, _idx: i })).sort((a, b) => {
+      if (a.achieved !== b.achieved) return a.achieved ? 1 : -1;
+      return (priorityOrder[a.priority] || 1) - (priorityOrder[b.priority] || 1);
+    });
+
+    // ── HORSE STANCE STATE ──
+    const [horseLog, setHorseLog] = useState(() => {
+      try { return JSON.parse(localStorage.getItem("ironfist_horsestance") || "{}"); } catch { return {}; }
+    });
+    const [activeHorse, setActiveHorse] = useState(null); // { levelIdx, timer, running, best }
+    const horseRef = useRef(null);
+
+    const saveHorseLog = (log) => {
+      setHorseLog(log);
+      try { localStorage.setItem("ironfist_horsestance", JSON.stringify(log)); } catch { }
+    };
 
     useEffect(() => {
-      if (activeEx?.running && activeEx?.timer > 0) {
-        knuckleTimerRef.current = setInterval(() => {
-          setActiveEx(a => a ? { ...a, timer: a.timer - 1 } : null);
+      if (activeHorse?.running && activeHorse.timer > 0) {
+        horseRef.current = setInterval(() => {
+          setActiveHorse(a => a ? { ...a, timer: a.timer + 1 } : null);
         }, 1000);
-      } else if (activeEx?.timer === 0 && activeEx?.running) {
-        setActiveEx(a => a ? { ...a, running: false } : null);
       }
-      return () => clearInterval(knuckleTimerRef.current);
-    }, [activeEx?.running, activeEx?.timer]);
+      return () => clearInterval(horseRef.current);
+    }, [activeHorse?.running]);
 
-    const logSet = (type, id) => {
-      if (type === 'knuckle') setKnuckleSets(p => ({ ...p, [id]: (p[id] || 0) + 1 }));
-      else setNeckSets(p => ({ ...p, [id]: (p[id] || 0) + 1 }));
+    const startHorseTimer = (levelIdx) => {
+      setActiveHorse({ levelIdx, timer: 0, running: true });
+      speak("Horse stance. Begin. Breathe through your nose.");
     };
 
-    const ExRow = ({ ex, type, idx }) => {
-      const isActive = activeEx?.type === type && activeEx?.idx === idx;
-      const setsLog = type === 'knuckle' ? knuckleSets : neckSets;
-      const doneSets = setsLog[ex.id] || 0;
-      const totalSets = ex.sets || 1;
-      const complete = doneSets >= totalSets;
-      const accentColor = type === 'neck' ? T.accent2 : T.accent;
-
-      return (
-        <div style={{ ...s.card, marginBottom: 10, border: `1px solid ${complete ? T.green : isActive ? accentColor : T.border}44`, background: complete ? T.green + "0a" : T.card }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 20, flexShrink: 0 }}>{ex.icon}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: complete ? T.green : T.text }}>{ex.name}</div>
-                {complete && <span style={{ ...s.badge(T.green), fontSize: 10 }}>✓ DONE</span>}
-              </div>
-              <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.5, marginBottom: 8 }}>{ex.cue}</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {ex.sets && <span style={{ ...s.badge(accentColor) }}>{ex.sets} sets</span>}
-                {ex.reps && <span style={{ ...s.badge(T.accent3) }}>× {ex.reps} reps</span>}
-                {ex.duration && <span style={{ ...s.badge(T.accent3) }}>⏱ {fmt(ex.duration)}</span>}
-                {doneSets > 0 && !complete && <span style={{ ...s.badge(T.accent) }}>{doneSets}/{totalSets} sets done</span>}
-              </div>
-            </div>
-          </div>
-
-          {isActive && ex.unit === "time" && (
-            <div style={{ background: dark ? "#0a0a18" : "#eef0ff", borderRadius: 10, padding: 12, marginBottom: 10, textAlign: "center" }}>
-              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 48, color: activeEx.timer < 5 ? T.accent : T.text, lineHeight: 1, animation: activeEx.running && activeEx.timer <= 5 ? "countPulse 0.5s infinite" : "none" }}>{fmt(activeEx.timer)}</div>
-              <div style={{ fontSize: 11, color: T.sub, letterSpacing: 3, marginTop: 2 }}>SET {activeEx.set} OF {totalSets}</div>
-              <div style={{ height: 4, background: T.border, borderRadius: 2, marginTop: 8 }}>
-                <div style={{ height: "100%", width: `${((ex.duration - activeEx.timer) / ex.duration) * 100}%`, background: `linear-gradient(90deg,${accentColor},${T.accent2})`, borderRadius: 2, transition: "width 1s linear" }} />
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {ex.unit === "time" ? (
-              !isActive ? (
-                <button onClick={() => setActiveEx({ type, idx, set: 1, timer: ex.duration, running: false })} style={{ ...s.btn(accentColor, false), fontSize: 13, padding: "8px 16px" }}>▶ Start Timer</button>
-              ) : (
-                <>
-                  <button onClick={() => {
-                    if (activeEx.timer === 0) setActiveEx(a => ({ ...a, timer: ex.duration, running: false }));
-                    else setActiveEx(a => ({ ...a, running: !a.running }));
-                  }} style={{ ...s.btn(activeEx.running ? T.accent2 : T.green, false), fontSize: 13, padding: "8px 14px" }}>
-                    {activeEx.timer === 0 ? "↺ Redo" : activeEx.running ? "⏸ Pause" : "▶ Start"}
-                  </button>
-                  {(activeEx.timer === 0 || !activeEx.running) && (
-                    <button onClick={() => {
-                      logSet(type, ex.id);
-                      if ((doneSets + 1) >= totalSets) setActiveEx(null);
-                      else setActiveEx(a => ({ ...a, set: a.set + 1, timer: ex.duration, running: false }));
-                    }} style={{ ...s.btn(T.green, false), fontSize: 13, padding: "8px 14px" }}>
-                      {doneSets + 1 >= totalSets ? "✓ Complete" : "Next Set →"}
-                    </button>
-                  )}
-                  <button onClick={() => setActiveEx(null)} style={{ ...s.btn(T.sub, true), fontSize: 13, padding: "8px 10px" }}>✕</button>
-                </>
-              )
-            ) : (
-              <button onClick={() => logSet(type, ex.id)} disabled={complete} style={{ ...s.btn(complete ? T.sub : T.green, complete), fontSize: 13, padding: "8px 16px", opacity: complete ? 0.5 : 1 }}>
-                {complete ? "✓ All Sets Done" : `+ Log Set (${doneSets + 1}/${totalSets})`}
-              </button>
-            )}
-          </div>
-        </div>
-      );
+    const stopHorseTimer = (levelIdx) => {
+      if (!activeHorse) return;
+      clearInterval(horseRef.current);
+      const elapsed = activeHorse.timer;
+      const key = `level_${levelIdx}`;
+      const prev = horseLog[key] || { best: 0, sessions: [] };
+      const isNewBest = elapsed > prev.best;
+      const updated = {
+        ...horseLog,
+        [key]: {
+          best: Math.max(prev.best, elapsed),
+          sessions: [...(prev.sessions || []).slice(-20), { date: new Date().toLocaleDateString("en-GB"), duration: elapsed }],
+        },
+      };
+      saveHorseLog(updated);
+      setActiveHorse(null);
+      if (isNewBest) speak(`New personal best! ${elapsed} seconds. Outstanding!`);
+      else speak(`${elapsed} seconds. Well done. Keep building.`);
     };
+
+    const currentUnlockedLevel = (() => {
+      for (let i = HORSE_STANCE_LEVELS.length - 1; i >= 0; i--) {
+        const key = `level_${i}`;
+        const log = horseLog[key];
+        if (log && log.best >= HORSE_STANCE_LEVELS[i].duration) return i + 1;
+      }
+      return 0;
+    })();
 
     return (
       <div style={{ padding: 16 }}>
-        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 38, letterSpacing: 4, color: T.accent, marginBottom: 4 }}>KNUCKLE</div>
-        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 24, letterSpacing: 3, color: T.sub, marginBottom: 16 }}>CONDITIONING</div>
 
-        <div style={{ ...s.card, background: T.accent + "11", border: `1px solid ${T.accent}44`, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: T.sub, lineHeight: 1.7 }}>
-            <strong style={{ color: T.accent }}>⚠️ Important:</strong> Knuckle conditioning must be progressive. Never skip stages. Allow 48h recovery between sessions. Pain ≠ gain here — discomfort is okay, sharp pain is not.
+        {/* ── SECTION: BUDGET LIST ── */}
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 38, letterSpacing: 4, color: T.accent2, marginBottom: 4 }}>GEAR</div>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 3, color: T.sub, marginBottom: 16 }}>BUDGET PIPELINE</div>
+
+        <div style={{ ...s.card, background: T.accent2 + "0d", border: `1px solid ${T.accent2}33`, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.7 }}>
+            Track the boxing gear and equipment you want to buy. Mark items as achieved as you get them. Prioritise what makes the biggest difference to your training first.
           </div>
         </div>
 
-        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 3, color: T.accent, marginBottom: 10 }}>CONDITIONING DRILLS</div>
-        {KNUCKLE_CONDITIONING.map((k, i) => {
-          const isUnlocked = i < weekNumber / 2;
-          const ex = { id: `knuckle_${i}`, name: k.drill, sets: 3, duration: k.duration || undefined, reps: k.reps || undefined, unit: k.duration ? "time" : undefined, icon: "🤜", cue: k.desc };
-          return (
-            <div key={i}>
-              {!isUnlocked && <div style={{ ...s.badge(T.sub), display: "inline-block", marginBottom: 6, fontSize: 11 }}>🔒 UNLOCKS WEEK {k.week}</div>}
-              <div style={{ opacity: isUnlocked ? 1 : 0.45, pointerEvents: isUnlocked ? "auto" : "none" }}>
-                <ExRow ex={ex} type="knuckle" idx={i} />
+        {/* Budget summary bar */}
+        {budgetItems.length > 0 && (
+          <div style={{ ...s.card, marginBottom: 16, padding: "14px 18px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2 }}>BUDGET PROGRESS</div>
+              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color: T.accent2 }}>
+                ₹{achievedCost.toLocaleString()} / ₹{totalCost.toLocaleString()}
               </div>
+            </div>
+            <div style={{ height: 8, background: T.border, borderRadius: 4, marginBottom: 8 }}>
+              <div style={{ width: `${achievedPct}%`, height: "100%", background: `linear-gradient(90deg, ${T.accent2}, ${T.green})`, borderRadius: 4, transition: "width 0.6s" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.sub }}>
+              <span>{budgetItems.filter(b => b.achieved).length} of {budgetItems.length} items achieved</span>
+              <span style={{ color: T.accent2 }}>{achievedPct}% complete</span>
+            </div>
+          </div>
+        )}
+
+        {/* Add / edit form */}
+        {showBudgetAdd && (
+          <div style={{ ...s.card, marginBottom: 16, border: `1px solid ${T.accent2}44`, animation: "slideUp 0.3s ease" }}>
+            <div style={{ fontSize: 14, color: T.accent2, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+              {editBudgetIdx !== null ? "✏️ EDIT ITEM" : "➕ ADD ITEM"}
+            </div>
+            <label style={s.label}>Item Name *</label>
+            <input style={s.input} placeholder="e.g. Boxing Gloves 14oz" value={budgetForm.name}
+              onChange={e => setBudgetForm(f => ({ ...f, name: e.target.value }))} />
+            <label style={s.label}>Estimated Cost (₹)</label>
+            <input style={s.input} type="number" placeholder="e.g. 2500" value={budgetForm.cost}
+              onChange={e => setBudgetForm(f => ({ ...f, cost: e.target.value }))} />
+            <label style={s.label}>Priority</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {["high", "medium", "low"].map(p => (
+                <button key={p} onClick={() => setBudgetForm(f => ({ ...f, priority: p }))}
+                  style={{ ...s.btn(budgetForm.priority === p ? priorityConfig[p].color : T.sub, budgetForm.priority !== p), flex: 1, justifyContent: "center", padding: "8px 4px", fontSize: 12 }}>
+                  {priorityConfig[p].label}
+                </button>
+              ))}
+            </div>
+            <label style={s.label}>Notes (optional)</label>
+            <input style={s.input} placeholder="e.g. Need for sparring, check Decathlon" value={budgetForm.notes}
+              onChange={e => setBudgetForm(f => ({ ...f, notes: e.target.value }))} />
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <button onClick={() => { setShowBudgetAdd(false); setEditBudgetIdx(null); setBudgetForm({ name: "", cost: "", priority: "medium", notes: "" }); }}
+                style={{ ...s.btn(T.sub, true), flex: 1, justifyContent: "center" }}>✕ Cancel</button>
+              <button onClick={addBudgetItem} disabled={!budgetForm.name.trim()}
+                style={{ ...s.btn(T.accent2, false), flex: 2, justifyContent: "center", opacity: !budgetForm.name.trim() ? 0.5 : 1 }}>
+                {editBudgetIdx !== null ? "✓ Update" : "✓ Add to List"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!showBudgetAdd && (
+          <button onClick={() => setShowBudgetAdd(true)}
+            style={{ ...s.btn(T.accent2, true), width: "100%", justifyContent: "center", marginBottom: 16, fontSize: 14 }}>
+            ＋ Add Gear / Equipment
+          </button>
+        )}
+
+        {/* Budget items list */}
+        {budgetItems.length === 0 ? (
+          <div style={{ ...s.card, textAlign: "center", padding: "32px 16px", color: T.sub, marginBottom: 24 }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🎯</div>
+            <div style={{ fontSize: 14 }}>No items yet. Add boxing gear, equipment, or training tools you want to buy — and track your progress toward getting them.</div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 24 }}>
+            {sorted.map((item) => {
+              const pc = priorityConfig[item.priority] || priorityConfig.medium;
+              return (
+                <div key={item.id} style={{ ...s.card, marginBottom: 10, border: `1px solid ${item.achieved ? T.green : pc.color}33`, background: item.achieved ? T.green + "07" : T.card, opacity: item.achieved ? 0.75 : 1, transition: "all 0.3s" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    {/* Checkbox */}
+                    <button onClick={() => toggleAchieved(item._idx)}
+                      style={{ width: 28, height: 28, borderRadius: 6, border: `2px solid ${item.achieved ? T.green : pc.color}`, background: item.achieved ? T.green : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2, transition: "all 0.2s" }}>
+                      {item.achieved && <span style={{ color: "#fff", fontSize: 14 }}>✓</span>}
+                    </button>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ fontWeight: 700, fontSize: 15, color: item.achieved ? T.sub : T.text, textDecoration: item.achieved ? "line-through" : "none" }}>{item.name}</div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                          {item.cost > 0 && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 13, color: item.achieved ? T.green : T.accent2 }}>₹{item.cost.toLocaleString()}</span>}
+                          <span style={{ ...s.badge(pc.color), fontSize: 10 }}>{pc.label}</span>
+                        </div>
+                      </div>
+                      {item.notes ? <div style={{ fontSize: 12, color: T.sub, marginTop: 3 }}>{item.notes}</div> : null}
+                      {item.achieved && <div style={{ fontSize: 11, color: T.green, marginTop: 3 }}>✓ Achieved · {item.addedDate}</div>}
+                    </div>
+                    {/* Actions */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <button onClick={() => startEdit(item._idx)} style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px", color: T.sub, cursor: "pointer", fontSize: 11 }}>✏️</button>
+                      <button onClick={() => deleteBudgetItem(item._idx)} style={{ background: "transparent", border: `1px solid ${T.accent}33`, borderRadius: 6, padding: "3px 8px", color: T.accent, cursor: "pointer", fontSize: 11 }}>✕</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── SECTION: HORSE STANCE PIPELINE ── */}
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 38, letterSpacing: 4, color: T.accent3, marginBottom: 2 }}>HORSE</div>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 3, color: T.sub, marginBottom: 4 }}>STANCE PIPELINE</div>
+        <div style={{ fontFamily: "'Rajdhani'", fontSize: 13, color: T.accent3, letterSpacing: 2, marginBottom: 16 }}>马步 Mǎ Bù — Beginner → Shaolin Entry</div>
+
+        <div style={{ ...s.card, background: T.accent3 + "0d", border: `1px solid ${T.accent3}33`, marginBottom: 20 }}>
+          <div style={{ fontSize: 14, color: T.sub, lineHeight: 1.8 }}>
+            <strong style={{ color: T.accent3 }}>Why Horse Stance?</strong> Shaolin Kung Fu is built on this foundation. It forges iron legs, deep hip mobility, mental toughness, and rooted power — the same power that makes a punch land differently. Train it separately from your boxing sessions. Practice daily or every other day. Progress is measured in seconds held.
+          </div>
+        </div>
+
+        {/* Progress pipeline visual */}
+        <div style={{ ...s.card, marginBottom: 20, padding: "16px 12px" }}>
+          <div style={{ fontSize: 12, color: T.sub, letterSpacing: 2, marginBottom: 12 }}>YOUR PIPELINE</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+            {HORSE_STANCE_LEVELS.map((lvl, i) => {
+              const key = `level_${i}`;
+              const log = horseLog[key];
+              const best = log?.best || 0;
+              const passed = best >= lvl.duration;
+              const isActive = i === currentUnlockedLevel;
+              const pct = Math.min(100, Math.round((best / lvl.duration) * 100));
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
+                  {/* Connector line */}
+                  {i < HORSE_STANCE_LEVELS.length - 1 && (
+                    <div style={{ position: "absolute", top: 18, left: "50%", width: "100%", height: 3, background: passed ? T.accent3 : T.border, zIndex: 0 }} />
+                  )}
+                  {/* Node */}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: "50%", zIndex: 1,
+                    background: passed ? T.accent3 : isActive ? T.accent3 + "33" : T.card2,
+                    border: `3px solid ${passed ? T.accent3 : isActive ? T.accent3 : T.border}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 14, transition: "all 0.3s",
+                    boxShadow: isActive ? `0 0 12px ${T.accent3}66` : "none",
+                  }}>
+                    {passed ? "✓" : lvl.icon}
+                  </div>
+                  <div style={{ fontSize: 8, color: passed ? T.accent3 : isActive ? T.text : T.sub, marginTop: 4, textAlign: "center", letterSpacing: 0.5 }}>
+                    {passed ? "PASSED" : isActive ? `${pct}%` : "LOCKED"}
+                  </div>
+                  <div style={{ fontSize: 8, color: T.sub, textAlign: "center" }}>Lv.{i + 1}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Level cards */}
+        {HORSE_STANCE_LEVELS.map((lvl, i) => {
+          const key = `level_${i}`;
+          const log = horseLog[key];
+          const best = log?.best || 0;
+          const passed = best >= lvl.duration;
+          const isCurrentLevel = i === currentUnlockedLevel;
+          const isLocked = i > currentUnlockedLevel;
+          const pct = Math.min(100, Math.round((best / lvl.duration) * 100));
+          const isTimerActive = activeHorse?.levelIdx === i;
+          const accentCol = passed ? T.green : isCurrentLevel ? T.accent3 : T.sub;
+
+          return (
+            <div key={i} style={{ ...s.card, marginBottom: 14, border: `1px solid ${accentCol}44`, background: isTimerActive ? T.accent3 + "0a" : passed ? T.green + "07" : T.card, opacity: isLocked ? 0.45 : 1, pointerEvents: isLocked ? "none" : "auto" }}>
+
+              {/* Level header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 20 }}>{lvl.icon}</span>
+                    <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2, color: accentCol }}>LEVEL {lvl.level} — {lvl.name}</div>
+                    {passed && <span style={{ ...s.badge(T.green), fontSize: 10 }}>✓ PASSED</span>}
+                    {isCurrentLevel && !passed && <span style={{ ...s.badge(T.accent3), fontSize: 10 }}>← CURRENT</span>}
+                    {isLocked && <span style={{ ...s.badge(T.sub), fontSize: 10 }}>🔒 LOCKED</span>}
+                  </div>
+                  <div style={{ fontFamily: "'Rajdhani'", fontSize: 12, color: T.sub, letterSpacing: 1, marginTop: 2 }}>{lvl.chineseName} · Target: {lvl.duration}s · Weeks {lvl.targetWeeks}</div>
+                </div>
+                {best > 0 && (
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 18, color: passed ? T.green : T.accent3, lineHeight: 1 }}>🏆 {best}s</div>
+                    <div style={{ fontSize: 9, color: T.sub, letterSpacing: 1 }}>BEST</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.sub, marginBottom: 3 }}>
+                  <span>Progress to standard</span><span>{pct}% ({best}s / {lvl.duration}s)</span>
+                </div>
+                <div style={{ height: 6, background: T.border, borderRadius: 3 }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, ${T.accent3}, ${passed ? T.green : T.accent3})`, borderRadius: 3, transition: "width 0.6s" }} />
+                </div>
+              </div>
+
+              {/* Cue */}
+              <div style={{ background: T.card2, borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: T.accent3, fontWeight: 700, letterSpacing: 2, marginBottom: 4 }}>🥋 FORM & CUE</div>
+                <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>{lvl.cue}</div>
+              </div>
+
+              {/* Standard */}
+              <div style={{ background: accentCol + "11", border: `1px solid ${accentCol}33`, borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: accentCol, fontWeight: 700, letterSpacing: 2, marginBottom: 3 }}>🎯 PASS STANDARD</div>
+                <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.5 }}>{lvl.standard}</div>
+              </div>
+
+              {/* Mistakes */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: T.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 4 }}>⚠️ COMMON MISTAKES</div>
+                {lvl.mistakes.map((m, mi) => (
+                  <div key={mi} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                    <span style={{ color: T.accent, fontSize: 12, flexShrink: 0 }}>✗</span>
+                    <span style={{ fontSize: 12, color: T.sub }}>{m}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recent sessions */}
+              {log?.sessions?.length > 0 && (
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
+                  {log.sessions.slice(-5).map((sess, si) => (
+                    <span key={si} style={{ ...s.badge(si === log.sessions.slice(-5).length - 1 ? accentCol : T.sub), fontSize: 10 }}>
+                      {sess.date}: {sess.duration}s
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Timer controls */}
+              {!isLocked && (
+                isTimerActive ? (
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 56, color: activeHorse.timer >= lvl.duration ? T.green : T.text, lineHeight: 1, marginBottom: 4, animation: activeHorse.timer >= lvl.duration ? "countPulse 0.6s infinite" : "none" }}>
+                      {activeHorse.timer}s
+                    </div>
+                    <div style={{ fontSize: 11, color: T.sub, letterSpacing: 2, marginBottom: 12 }}>
+                      {activeHorse.timer >= lvl.duration ? "🎉 TARGET REACHED — STOP WHEN READY" : `${lvl.duration - activeHorse.timer}s TO TARGET`}
+                    </div>
+                    <div style={{ height: 6, background: T.border, borderRadius: 3, marginBottom: 12 }}>
+                      <div style={{ width: `${Math.min(100, (activeHorse.timer / lvl.duration) * 100)}%`, height: "100%", background: `linear-gradient(90deg, ${T.accent3}, ${T.green})`, borderRadius: 3, transition: "width 1s linear" }} />
+                    </div>
+                    <button onClick={() => stopHorseTimer(i)}
+                      style={{ ...s.btn(T.accent, false), width: "100%", justifyContent: "center", fontSize: 15 }}>
+                      ⏹ Stop & Save Time
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => startHorseTimer(i)}
+                    style={{ ...s.btn(passed ? T.green : T.accent3, passed), width: "100%", justifyContent: "center", fontSize: 14, animation: isCurrentLevel && !passed ? "glow 2s infinite" : "none" }}>
+                    {passed ? "▶ Practice Again" : best > 0 ? `▶ Resume Training (Best: ${best}s)` : "▶ Start Timer"}
+                  </button>
+                )
+              )}
             </div>
           );
         })}
 
-        {/* ── NECK WORKOUT ── */}
+        {/* Neck workout retained */}
         <div style={{ marginTop: 8, marginBottom: 4 }}>
           <div style={{ fontFamily: "'Bebas Neue'", fontSize: 32, letterSpacing: 4, color: T.accent2, lineHeight: 1 }}>NECK</div>
           <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 3, color: T.sub, marginBottom: 12 }}>WORKOUT</div>
@@ -2400,19 +2689,81 @@ export default function BoxingApp() {
             <strong style={{ color: T.accent2 }}>🏋️ Why train your neck?</strong> A strong neck absorbs punch impact, dramatically reducing knockdown risk. Train 2–3× per week. Start light — the neck is not used to direct loading. Stop immediately if you feel nerve or sharp pain.
           </div>
         </div>
-        {NECK_WORKOUT.map((ex, i) => (
-          <ExRow key={ex.id} ex={ex} type="neck" idx={i} />
-        ))}
+        {(() => {
+          const [neckSets, setNeckSets] = useState({});
+          const [activeNeck, setActiveNeck] = useState(null);
+          const neckRef = useRef(null);
+          useEffect(() => {
+            if (activeNeck?.running && activeNeck?.timer > 0) {
+              neckRef.current = setInterval(() => setActiveNeck(a => a ? { ...a, timer: a.timer - 1 } : null), 1000);
+            } else if (activeNeck?.timer === 0 && activeNeck?.running) {
+              setActiveNeck(a => a ? { ...a, running: false } : null);
+            }
+            return () => clearInterval(neckRef.current);
+          }, [activeNeck?.running, activeNeck?.timer]);
 
-        <div style={s.card}>
-          <div style={s.sectionTitle}>HAND CARE PROTOCOL</div>
-          {["Always use hand wraps during bag work", "Apply arnica gel post-training", "Soak hands in warm epsom salt water 10 min", "Moisturize knuckles daily to prevent cracking", "If knuckles are red/swollen — rest 48h", "Never punch hard surfaces without wraps"].map((tip, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, padding: "6px 0", borderBottom: `1px solid ${T.border}22`, alignItems: "center" }}>
-              <div style={{ color: T.accent, fontSize: 14 }}>•</div>
-              <div style={{ fontSize: 14 }}>{tip}</div>
-            </div>
-          ))}
-        </div>
+          return NECK_WORKOUT.map((ex, idx) => {
+            const doneSets = neckSets[ex.id] || 0;
+            const totalSets = ex.sets || 1;
+            const complete = doneSets >= totalSets;
+            const isActive = activeNeck?.idx === idx;
+            return (
+              <div key={ex.id} style={{ ...s.card, marginBottom: 10, border: `1px solid ${complete ? T.green : T.accent2}33`, background: complete ? T.green + "0a" : T.card }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{ex.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                      <div style={{ fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 2, color: complete ? T.green : T.text }}>{ex.name}</div>
+                      {complete && <span style={{ ...s.badge(T.green), fontSize: 10 }}>✓ DONE</span>}
+                    </div>
+                    <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.5, marginBottom: 6 }}>{ex.cue}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {ex.sets && <span style={{ ...s.badge(T.accent2) }}>{ex.sets} sets</span>}
+                      {ex.reps && <span style={{ ...s.badge(T.accent3) }}>× {ex.reps} reps</span>}
+                      {ex.duration && <span style={{ ...s.badge(T.accent3) }}>⏱ {fmt(ex.duration)}s</span>}
+                      {doneSets > 0 && !complete && <span style={{ ...s.badge(T.accent) }}>{doneSets}/{totalSets} done</span>}
+                    </div>
+                  </div>
+                </div>
+                {isActive && ex.unit === "time" && (
+                  <div style={{ background: dark ? "#0a0a18" : "#eef0ff", borderRadius: 10, padding: 12, marginBottom: 10, textAlign: "center" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 44, color: activeNeck.timer < 5 ? T.accent : T.text, lineHeight: 1 }}>{fmt(activeNeck.timer)}</div>
+                    <div style={{ height: 4, background: T.border, borderRadius: 2, marginTop: 8 }}>
+                      <div style={{ height: "100%", width: `${((ex.duration - activeNeck.timer) / ex.duration) * 100}%`, background: `linear-gradient(90deg,${T.accent2},${T.green})`, borderRadius: 2, transition: "width 1s linear" }} />
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {ex.unit === "time" ? (
+                    !isActive ? (
+                      <button onClick={() => setActiveNeck({ idx, timer: ex.duration, running: false })}
+                        style={{ ...s.btn(T.accent2, false), fontSize: 13, padding: "8px 16px" }}>▶ Start Timer</button>
+                    ) : (
+                      <>
+                        <button onClick={() => { if (activeNeck.timer === 0) setActiveNeck(a => ({ ...a, timer: ex.duration, running: false })); else setActiveNeck(a => ({ ...a, running: !a.running })); }}
+                          style={{ ...s.btn(activeNeck.running ? T.accent2 : T.green, false), fontSize: 13, padding: "8px 14px" }}>
+                          {activeNeck.timer === 0 ? "↺ Redo" : activeNeck.running ? "⏸ Pause" : "▶ Start"}
+                        </button>
+                        {(activeNeck.timer === 0 || !activeNeck.running) && (
+                          <button onClick={() => { setNeckSets(p => ({ ...p, [ex.id]: (p[ex.id] || 0) + 1 })); if ((doneSets + 1) >= totalSets) setActiveNeck(null); else setActiveNeck(a => ({ ...a, set: (a.set || 1) + 1, timer: ex.duration, running: false })); }}
+                            style={{ ...s.btn(T.green, false), fontSize: 13, padding: "8px 14px" }}>
+                            {doneSets + 1 >= totalSets ? "✓ Complete" : "Next Set →"}
+                          </button>
+                        )}
+                        <button onClick={() => setActiveNeck(null)} style={{ ...s.btn(T.sub, true), fontSize: 13, padding: "8px 10px" }}>✕</button>
+                      </>
+                    )
+                  ) : (
+                    <button onClick={() => setNeckSets(p => ({ ...p, [ex.id]: (p[ex.id] || 0) + 1 }))} disabled={complete}
+                      style={{ ...s.btn(complete ? T.sub : T.green, complete), fontSize: 13, padding: "8px 16px", opacity: complete ? 0.5 : 1 }}>
+                      {complete ? "✓ All Sets Done" : `+ Log Set (${doneSets + 1}/${totalSets})`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          });
+        })()}
       </div>
     );
   };
@@ -3404,7 +3755,7 @@ export default function BoxingApp() {
     { label: "🏠 Home", key: "home" },
     { label: "🧘 Recovery", key: "recovery" },
     { label: "🥗 Diet", key: "diet" },
-    { label: "🤜 Knuckle", key: "knuckle" },
+    { label: "🛠️ Tools", key: "knuckle" },
     { label: "🎯 Goals", key: "goals" },
     { label: "📊 Progress", key: "progress" },
     { label: "👤 Profile", key: "profile" },
@@ -3449,7 +3800,7 @@ export default function BoxingApp() {
           {screen === "home" && <HomeScreen />}
           {screen === "recovery" && <RecoveryScreen />}
           {screen === "diet" && <DietScreen />}
-          {screen === "knuckle" && <KnuckleScreen />}
+          {screen === "knuckle" && <TrainingToolsScreen />}
           {screen === "goals" && <GoalsScreen />}
           {screen === "progress" && <ProgressScreen />}
           {screen === "profile" && <ProfileScreen />}
